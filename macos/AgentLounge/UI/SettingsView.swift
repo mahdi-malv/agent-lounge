@@ -15,6 +15,7 @@ struct SettingsView: View {
             HooksSection(installer: installer)
             AlertsSection(preferences: preferences, requestNotifications: requestNotifications)
             PanelSection(preferences: preferences)
+            NotchSection(preferences: preferences)
             SourcesSection(preferences: preferences)
             PhoneSection(remote: remote)
             GeneralSection()
@@ -166,6 +167,29 @@ private struct PanelSection: View {
         case 60: "1 hour"
         case let m where m > 60 && m % 60 == 0: "\(m / 60) hours"
         default: "\(minutes) minutes"
+        }
+    }
+}
+
+// MARK: - Notch
+
+private struct NotchSection: View {
+    @Bindable var preferences: Preferences
+
+    var body: some View {
+        Section {
+            Toggle("Show status at the top of the screen", isOn: $preferences.notchEnabled)
+            Picker("Show on", selection: $preferences.notchPlacement) {
+                ForEach(NotchPlacement.allCases, id: \.self) { placement in
+                    Text(placement.label).tag(placement)
+                }
+            }
+            .disabled(!preferences.notchEnabled)
+        } header: {
+            Text("Notch")
+        } footer: {
+            Text("A small pill over the notch (or the middle of the menu bar) shows the top state and the number of agents. Hover it to see the sessions. Hidden when there are no agents.")
+                .foregroundStyle(.secondary)
         }
     }
 }

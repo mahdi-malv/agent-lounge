@@ -21,6 +21,8 @@ final class Preferences {
         static let muted = "sound.muted"
         static let showsUsage = "usage.shown"
         static let claudeUsage = "usage.claude.enabled"
+        static let notchEnabled = "notch.enabled"
+        static let notchPlacement = "notch.placement"
         static func alert(_ kind: AlertKind) -> String { "alert.\(kind.rawValue)" }
         static func source(_ source: SessionSource) -> String { "source.\(source.rawValue).enabled" }
     }
@@ -67,6 +69,16 @@ final class Preferences {
         didSet { defaults.set(claudeUsageEnabled, forKey: Key.claudeUsage) }
     }
 
+    /// Small status pill at the top center of the screen (over the notch, if there is one).
+    var notchEnabled: Bool {
+        didSet { defaults.set(notchEnabled, forKey: Key.notchEnabled) }
+    }
+
+    /// Screen(s) that show the notch status.
+    var notchPlacement: NotchPlacement {
+        didSet { defaults.set(notchPlacement.rawValue, forKey: Key.notchPlacement) }
+    }
+
     var alerts: [AlertKind: AlertSetting] {
         didSet {
             for kind in AlertKind.allCases where alerts[kind] != oldValue[kind] {
@@ -105,6 +117,8 @@ final class Preferences {
         showsUsage = defaults.object(forKey: Key.showsUsage) as? Bool ?? true
         claudeUsageEnabled = defaults.bool(forKey: Key.claudeUsage)
         pinnedTopLeft = defaults.string(forKey: Key.pinnedTopLeft).map(NSPointFromString)
+        notchEnabled = defaults.bool(forKey: Key.notchEnabled)
+        notchPlacement = defaults.string(forKey: Key.notchPlacement).flatMap(NotchPlacement.init) ?? .mouse
 
         var alerts = Self.defaultAlerts
         for kind in AlertKind.allCases {

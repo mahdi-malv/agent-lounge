@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let usage = UsageMonitor()
     private var statusItem: StatusItemController?
     private var panel: PanelController?
+    private var notch: NotchController?
     private var server: EventServer?
     private var monitor: SessionMonitor?
     private let focusService = FocusService()
@@ -92,6 +93,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.panel = panel
         self.statusItem = statusItem
 
+        let notch = NotchController(store: store, preferences: preferences)
+        notch.onOpenPanel = { [weak panel] in panel?.toggle() }
+        notch.start()
+        self.notch = notch
+
         store.focusHandler = { [weak self, weak panel] session in
             guard let self else { return }
             // An unpinned panel is a popover: close it so it does not cover the focused window.
@@ -145,6 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         monitor?.stop()
         remote?.stop()
         usage.stop()
+        notch?.stop()
     }
 
     // MARK: - Status item menu (right-click)
@@ -168,6 +175,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pin.target = self
         pin.state = preferences.isPinned ? .on : .off
         menu.addItem(pin)
+
+        let notchItem = NSMenuItem(title: "Show Notch Status", action: #selector(toggleNotch), keyEquivalent: "")
+        notchItem.target = self
+        notchItem.state = preferences.notchEnabled ? .on : .off
+        menu.addItem(notchItem)
 
         let mute = NSMenuItem(title: "Mute Sounds", action: #selector(toggleMute), keyEquivalent: "")
         mute.target = self
@@ -217,6 +229,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func togglePin() { panel?.togglePin() }
+    @objc private func toggleNotch() { preferences.notchEnabled.toggle() }
     @objc private func toggleMute() { preferences.isMuted.toggle() }
     @objc private func openSettings() { showSettings() }
     @objc private func addMocks() { store.addMockSessions() }
