@@ -34,6 +34,11 @@ in one panel. Each card shows the state (running, needs input, done, error), the
 activity, task progress, model, context use and the last message. Click ↗ to bring the
 session's window to the front, also when it is minimized.
 
+A usage bar at the top shows the plan limits of each agent (5-hour and weekly windows): percent left
+and time to reset. Codex numbers come from its local session files. Claude numbers come from the
+Claude usage API with your Claude Code sign-in: click **Show Claude usage…** in the panel (or
+Settings → Panel) and allow Keychain access once. The phone shows the same bar.
+
 The optional Android companion shows the same cards on your phone, sends alerts, answers
 Claude permission requests and types prompts into Ghostty sessions.
 

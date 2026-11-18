@@ -10,7 +10,7 @@ import Foundation
 /// - phone `{"type":"auth"}` first → Mac `welcome` + `snapshot`.
 /// - phone `{"type":"decide","requestId":"…","allow":true}`: answer a Claude permission request.
 /// - phone `{"type":"prompt","cardId":"…","text":"…"}`: type a prompt into the session's terminal (Ghostty).
-/// - Mac `snapshot` (after each change, throttled), `alert`, `result` (of a prompt), `error` (revoked).
+/// - Mac `snapshot` (after each change of cards or plan usage, throttled; `usage` added later, optional), `alert`, `result` (of a prompt), `error` (revoked).
 nonisolated enum RemoteProtocol {
     static let version = 2
     static let serviceType = "_agentlounge._tcp"
@@ -85,6 +85,8 @@ nonisolated struct ServerMessage: Codable, Equatable, Sendable {
     var serverId: String? = nil
     /// snapshot
     var sessions: [RemoteCard]? = nil
+    /// snapshot: plan usage per agent (`AgentUsage`). Nil when the usage bar is off.
+    var usage: [AgentUsage]? = nil
     var sentAt: Date? = nil
     /// alert
     var alert: RemoteAlert? = nil

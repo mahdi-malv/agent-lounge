@@ -39,6 +39,8 @@ final class RemoteHub {
         }
     }
     /// Types a phone prompt into the session (Ghostty). Returns nil on success, else the reason.
+    /// Plan usage sent in snapshots. Set by the app before `start()`.
+    @ObservationIgnored var usage: UsageMonitor?
     @ObservationIgnored var onPrompt: ((_ cardID: String, _ text: String) -> String?)?
     @ObservationIgnored private let store: SessionStore
     @ObservationIgnored private let defaults: UserDefaults
@@ -46,7 +48,7 @@ final class RemoteHub {
     @ObservationIgnored private let server = LANServer()
     @ObservationIgnored private var snapshotTask: Task<Void, Never>?
     @ObservationIgnored private var authTimers: [ObjectIdentifier: Task<Void, Never>] = [:]
-    @ObservationIgnored private var lastCards: [RemoteCard] = []
+    @ObservationIgnored private var lastContent: SnapshotContent?
     @ObservationIgnored private let logger = Logger(subsystem: "dev.agentlounge.AgentLounge", category: "Remote")
 
     init(store: SessionStore, defaults: UserDefaults = .standard, deviceFile: URL = RemoteHub.defaultDeviceFile) {
@@ -141,10 +143,11 @@ final class RemoteHub {
         server.start(port: LANServer.configuredPort(), serviceName: serviceName, serverId: serverId)
         let store = store
         let approvals = approvals
+        let usage = usage
         snapshotTask = Task { [weak self] in
-            for await cards in Observations({ Self.cards(store, approvals) }) {
+            for await content in Observations({ Self.content(store, approvals, usage) }) {
                 guard let self else { return }
-                cardsChanged(cards)
+                contentChanged(content)
                 try? await Task.sleep(for: Self.snapshotGap)
             }
         }
@@ -159,18 +162,26 @@ final class RemoteHub {
         connectedDeviceIDs = []
     }
 
-    private func cardsChanged(_ cards: [RemoteCard]) {
-        guard cards != lastCards else { return }
-        lastCards = cards
-        broadcast(snapshot(cards))
+    private struct SnapshotContent: Equatable {
+        var cards: [RemoteCard]
+        var usage: [AgentUsage]?
     }
 
-    private static func cards(_ store: SessionStore, _ approvals: ApprovalCenter?) -> [RemoteCard] {
-        store.visibleSessions.map { RemoteCard($0, approval: approvals?.first(for: $0.id)) }
+    private func contentChanged(_ content: SnapshotContent) {
+        guard content != lastContent else { return }
+        lastContent = content
+        broadcast(snapshot(content))
     }
 
-    private func snapshot(_ cards: [RemoteCard]) -> ServerMessage {
-        ServerMessage(type: .snapshot, sessions: cards, sentAt: .now)
+    private static func content(_ store: SessionStore, _ approvals: ApprovalCenter?, _ usage: UsageMonitor?) -> SnapshotContent {
+        SnapshotContent(
+            cards: store.visibleSessions.map { RemoteCard($0, approval: approvals?.first(for: $0.id)) },
+            usage: usage?.usages
+        )
+    }
+
+    private func snapshot(_ content: SnapshotContent) -> ServerMessage {
+        ServerMessage(type: .snapshot, sessions: content.cards, usage: content.usage, sentAt: .now)
     }
 
     private func broadcast(_ message: ServerMessage) {
@@ -245,7 +256,7 @@ final class RemoteHub {
         welcome.server = serviceName
         welcome.serverId = serverId
         connection.send(welcome)
-        connection.send(snapshot(Self.cards(store, approvals)))
+        connection.send(snapshot(Self.content(store, approvals, usage)))
         logger.info("Phone \(deviceId, privacy: .public) authenticated")
     }
 

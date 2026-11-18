@@ -25,6 +25,15 @@ Read `PLAN.md` first. At the end of each session:
 
 ## Log
 
+### 2026-11-18 — Session 13: plan usage bar
+- `UsageMonitor`: Codex `rate_limits` from the newest rollouts (every 30 s); Claude `GET /api/oauth/usage` with the
+  Claude Code token (Keychain "Claude Code-credentials" or `~/.claude/.credentials.json`, every 3 min, opt-in
+  because of the Keychain prompt). The token is never renewed by us.
+- Panel `UsageBar` under the header; Settings → Panel toggles. Snapshot gets optional `usage` (old phones ignore it).
+- Android: `AgentUsage` in the protocol, usage strip under the top app bar.
+- Verified: Mac 130 tests, Android 32 tests, lint clean, panel bar rendered (light/dark).
+- Not verified: live Claude API reply (shape from Claude Code's own client), Keychain prompt, phone strip on device.
+
 ### 2026-11-18 — Session 12: approvals, encryption, Ghostty prompts
 - Live check of Claude's PermissionRequest hook (facts → PLAN §12): dialog shows while the hook runs; an `allow`
   from a slow hook closes it; the hook is not killed when the user answers first.

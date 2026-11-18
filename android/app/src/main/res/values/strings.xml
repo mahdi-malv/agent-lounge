@@ -72,6 +72,8 @@
     <string name="detail_subagents">Subagents</string>
     <string name="detail_context">Context</string>
     <string name="detail_tasks">Tasks</string>
+    <string name="detail_last_reply">Last reply</string>
+    <string name="action_read_all">Read all</string>
     <string name="ago">%s ago</string>
     <string name="cd_avatar">Agent, %s</string>
     <string name="cd_expanded">Expanded</string>
@@ -109,4 +111,6 @@
         <item quantity="one">%1$d agent · %2$d running · %3$d waiting</item>
         <item quantity="other">%1$d agents · %2$d running · %3$d waiting</item>
     </plurals>
+    <string name="usage_no_data">No usage data yet</string>
+    <string name="cd_usage_window">%1$s window: %2$s, resets in %3$s</string>
 </resources>

@@ -19,6 +19,8 @@ final class Preferences {
         static let floatsWhenPinned = "panel.floatsWhenPinned"
         static let autoHideDoneMinutes = "panel.autoHideDoneMinutes"
         static let muted = "sound.muted"
+        static let showsUsage = "usage.shown"
+        static let claudeUsage = "usage.claude.enabled"
         static func alert(_ kind: AlertKind) -> String { "alert.\(kind.rawValue)" }
         static func source(_ source: SessionSource) -> String { "source.\(source.rawValue).enabled" }
     }
@@ -52,6 +54,17 @@ final class Preferences {
     /// Hide done cards after this many minutes without events. 0 = off.
     var autoHideDoneMinutes: Int {
         didSet { defaults.set(autoHideDoneMinutes, forKey: Key.autoHideDoneMinutes) }
+    }
+
+    /// Usage bar at the top of the panel.
+    var showsUsage: Bool {
+        didSet { defaults.set(showsUsage, forKey: Key.showsUsage) }
+    }
+
+    /// Read the Claude Code sign-in from the Keychain to get Claude plan usage. Off by default:
+    /// macOS asks for Keychain access.
+    var claudeUsageEnabled: Bool {
+        didSet { defaults.set(claudeUsageEnabled, forKey: Key.claudeUsage) }
     }
 
     var alerts: [AlertKind: AlertSetting] {
@@ -89,6 +102,8 @@ final class Preferences {
         isMuted = defaults.bool(forKey: Key.muted)
         floatsWhenPinned = defaults.object(forKey: Key.floatsWhenPinned) as? Bool ?? true
         autoHideDoneMinutes = max(0, defaults.integer(forKey: Key.autoHideDoneMinutes))
+        showsUsage = defaults.object(forKey: Key.showsUsage) as? Bool ?? true
+        claudeUsageEnabled = defaults.bool(forKey: Key.claudeUsage)
         pinnedTopLeft = defaults.string(forKey: Key.pinnedTopLeft).map(NSPointFromString)
 
         var alerts = Self.defaultAlerts

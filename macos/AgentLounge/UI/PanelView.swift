@@ -11,6 +11,7 @@ struct PanelActions {
 struct PanelView: View {
     let store: SessionStore
     let preferences: Preferences
+    let usage: UsageMonitor
     let layout: PanelLayout
     let actions: PanelActions
     let onHeightChange: (CGFloat) -> Void
@@ -28,6 +29,11 @@ struct PanelView: View {
                 isPinned: preferences.isPinned,
                 actions: actions
             )
+            if preferences.showsUsage {
+                UsageBar(usages: usage.usages, claudeEnabled: preferences.claudeUsageEnabled) {
+                    preferences.claudeUsageEnabled = true
+                }
+            }
             if sessions.isEmpty {
                 EmptyLoungeView(openSettings: actions.openSettings)
             } else {

@@ -18,6 +18,7 @@ final class PanelController: NSObject, NSWindowDelegate {
 
     private let store: SessionStore
     private let preferences: Preferences
+    private let usage: UsageMonitor
     private let layout = PanelLayout()
     private let panel: LoungePanel
     private var outsideClickMonitor: Any?
@@ -27,9 +28,10 @@ final class PanelController: NSObject, NSWindowDelegate {
     private var lastOutsideDismissal: Date = .distantPast
     private let logger = Logger(subsystem: "dev.agentlounge.AgentLounge", category: "Panel")
 
-    init(store: SessionStore, preferences: Preferences) {
+    init(store: SessionStore, preferences: Preferences, usage: UsageMonitor) {
         self.store = store
         self.preferences = preferences
+        self.usage = usage
         panel = LoungePanel(contentRect: NSRect(x: 0, y: 0, width: PanelMetrics.width, height: 240))
         super.init()
         panel.delegate = self
@@ -113,6 +115,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         let root = PanelView(
             store: store,
             preferences: preferences,
+            usage: usage,
             layout: layout,
             actions: actions,
             onHeightChange: { [weak self] height in

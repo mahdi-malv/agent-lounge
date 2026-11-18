@@ -40,7 +40,15 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.text.font.FontFamily
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -130,16 +138,25 @@ fun LoungeContent(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        state.macName.ifEmpty { stringResource(R.string.app_name) },
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+            Column {
+                TopAppBar(
+                    title = {
+                        Text(
+                            state.macName.ifEmpty { stringResource(R.string.app_name) },
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    actions = { TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.settings_title)) } },
+                )
+                if (state.usage.isNotEmpty()) {
+                    UsageStrip(
+                        rows = state.usage,
+                        stale = state.isStale,
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                     )
-                },
-                actions = { TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.settings_title)) } },
-            )
+                }
+            }
         },
     ) { padding ->
         LazyColumn(
@@ -180,6 +197,77 @@ fun LoungeContent(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun UsageStrip(rows: List<UsageUi>, stale: Boolean, modifier: Modifier = Modifier) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = modifier.graphicsLayer { alpha = if (stale) 0.5f else 1f },
+    ) {
+        rows.forEach { row ->
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    row.agent,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(52.dp),
+                )
+                if (row.problem != null || row.windows.isEmpty()) {
+                    Text(
+                        row.problem ?: stringResource(R.string.usage_no_data),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    row.windows.forEachIndexed { index, window ->
+                        if (index > 0) Spacer(Modifier.width(12.dp))
+                        UsageGauge(window, Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UsageGauge(window: UsageUi.WindowUi, modifier: Modifier = Modifier) {
+    val color = when (window.level) {
+        UsageUi.Level.OK -> LoungeColors.Running
+        UsageUi.Level.HIGH -> LoungeColors.NeedsInput
+        UsageUi.Level.CRITICAL -> LoungeColors.Error
+    }
+    val description = stringResource(R.string.cd_usage_window, window.label, window.left, window.resetsIn ?: "-")
+    Column(modifier.semantics(mergeDescendants = true) { stateDescription = description }) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(window.label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.width(6.dp))
+            Text(window.left, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+            Spacer(Modifier.weight(1f))
+            window.resetsIn?.let {
+                Text(
+                    "↻$it",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
+        }
+        Spacer(Modifier.height(3.dp))
+        LinearProgressIndicator(
+            progress = { window.fraction },
+            color = color,
+            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            strokeCap = StrokeCap.Round,
+            drawStopIndicator = {},
+            gapSize = 0.dp,
+            modifier = Modifier.fillMaxWidth().height(4.dp),
+        )
     }
 }
 
@@ -441,18 +529,61 @@ private fun CardDetails(card: CardUi) {
                 modifier = Modifier.fillMaxWidth().height(4.dp),
             )
         }
-        card.lastMessage?.let { message ->
-            Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-            ) {
-                Text(message, style = MaterialTheme.typography.bodySmall, maxLines = 12, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(10.dp))
-            }
-        }
+        card.lastMessage?.let { message -> LastReply(card.title, message) }
         if (card.tasks.isNotEmpty()) {
             Text(stringResource(R.string.detail_tasks), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 4.dp))
             card.tasks.forEach { task -> TaskRow(task) }
+        }
+    }
+}
+
+/** Preview of the agent's last reply. Tap opens the full text in a scrollable sheet. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LastReply(title: String, message: String) {
+    var showSheet by rememberSaveable { mutableStateOf(false) }
+    var overflows by remember(message) { mutableStateOf(false) }
+    Surface(
+        onClick = { showSheet = true },
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+    ) {
+        Column(Modifier.padding(10.dp)) {
+            Text(
+                message,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 12,
+                overflow = TextOverflow.Ellipsis,
+                onTextLayout = { overflows = it.hasVisualOverflow },
+            )
+            if (overflows) {
+                Text(
+                    stringResource(R.string.action_read_all),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
+        }
+    }
+    if (showSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        ) {
+            Column(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    stringResource(R.string.detail_last_reply),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 12.dp),
+                )
+                SelectionContainer(Modifier.verticalScroll(rememberScrollState())) {
+                    Text(message, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
         }
     }
 }
@@ -512,12 +643,29 @@ private val previewCards = listOf(
     ),
 )
 
+private val previewUsage = listOf(
+    UsageUi(
+        agent = "Claude", plan = "Max", problem = null,
+        windows = listOf(
+            UsageUi.WindowUi("5h", 0.12f, "88% left", "2h 10m", UsageUi.Level.OK),
+            UsageUi.WindowUi("7d", 0.76f, "24% left", "3d 2h", UsageUi.Level.HIGH),
+        ),
+    ),
+    UsageUi(
+        agent = "Codex", plan = "Plus", problem = null,
+        windows = listOf(
+            UsageUi.WindowUi("5h", 0.02f, "98% left", "2h 29m", UsageUi.Level.OK),
+            UsageUi.WindowUi("7d", 0.93f, "7% left", "2d 7h", UsageUi.Level.CRITICAL),
+        ),
+    ),
+)
+
 @Preview(showBackground = true)
 @Composable
 private fun LoungePreview() {
     AgentLoungeCompanionTheme {
         LoungeContent(
-            state = LoungeUiState(macName = "Mahdi’s MacBook Pro", status = LinkStatus.CONNECTED, cards = previewCards, expandedIds = setOf("a")),
+            state = LoungeUiState(macName = "Mahdi’s MacBook Pro", status = LinkStatus.CONNECTED, cards = previewCards, usage = previewUsage, expandedIds = setOf("a")),
             localNetworkGranted = true,
             onRequestPermissions = {},
             onOpenSettings = {},

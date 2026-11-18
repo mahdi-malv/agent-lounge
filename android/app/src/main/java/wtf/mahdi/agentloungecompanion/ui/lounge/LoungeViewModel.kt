@@ -30,6 +30,8 @@ data class LoungeUiState(
     val retryInSeconds: Int = 0,
     val failureReason: String? = null,
     val cards: List<CardUi> = emptyList(),
+    /** Plan usage rows (top strip). Empty: strip hidden. */
+    val usage: List<UsageUi> = emptyList(),
     val expandedIds: Set<String> = emptySet(),
     /** Card to scroll to (tapped notification). Cleared with [LoungeAction.FocusShown]. */
     val focusIndex: Int? = null,
@@ -88,6 +90,10 @@ class LoungeViewModel(
         CardFormat.sorted(cards).map { CardFormat.toUi(it, now, sent, drafts, sending) }
     }
 
+    private val usageRows = combine(connection.usage, ticks) { usage, now -> UsageFormat.toUi(usage, now) }
+
+    private val cardsAndUsage = combine(sortedCards, usageRows) { cards, usage -> cards to usage }
+
     init {
         viewModelScope.launch {
             connection.promptResults.collect { result ->
@@ -104,11 +110,11 @@ class LoungeViewModel(
 
     val uiState: StateFlow<LoungeUiState> = combine(
         connection.state,
-        sortedCards,
+        cardsAndUsage,
         pairedMac,
         _expandedIds,
         focusRequests,
-    ) { state, cards, mac, expanded, focusId ->
+    ) { state, (cards, usage), mac, expanded, focusId ->
         val focusIndex = focusId?.let { id -> cards.indexOfFirst { it.id == id }.takeIf { it >= 0 } }
         LoungeUiState(
             macName = (state as? ConnectionState.Connected)?.server ?: mac?.name.orEmpty(),
@@ -122,6 +128,7 @@ class LoungeViewModel(
                 ?.let { ((it.retryAtMillis - clock() + 999) / 1000).toInt().coerceAtLeast(0) } ?: 0,
             failureReason = (state as? ConnectionState.Waiting)?.reason,
             cards = cards,
+            usage = usage,
             expandedIds = if (focusId != null) expanded + focusId else expanded,
             focusIndex = focusIndex,
         )

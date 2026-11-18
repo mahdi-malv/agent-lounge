@@ -61,7 +61,7 @@ object LoungeProtocol {
                 server = message.server.orEmpty(),
                 serverId = message.serverId.orEmpty(),
             )
-            "snapshot" -> Incoming.Snapshot(message.sessions.orEmpty())
+            "snapshot" -> Incoming.Snapshot(message.sessions.orEmpty(), message.usage.orEmpty())
             "alert" -> message.alert?.let { Incoming.Alert(it) } ?: Incoming.Unknown
             "result" -> Incoming.Result(message.cardId.orEmpty(), message.ok == true, message.reason)
             "error" -> Incoming.Error(ErrorCode.from(message.error))
@@ -88,7 +88,8 @@ sealed interface Incoming {
     class Paired(val publicKey: ByteArray, val box: ByteArray) : Incoming
     class Challenge(val nonce: ByteArray) : Incoming
     data class Welcome(val deviceId: String, val server: String, val serverId: String) : Incoming
-    data class Snapshot(val sessions: List<RemoteCard>) : Incoming
+    /** [usage] is empty when the Mac sends none (older Mac or usage bar off). */
+    data class Snapshot(val sessions: List<RemoteCard>, val usage: List<AgentUsage> = emptyList()) : Incoming
     data class Alert(val alert: RemoteAlert) : Incoming
     /** Answer to a prompt: [reason] is set when it failed. */
     data class Result(val cardId: String, val ok: Boolean, val reason: String?) : Incoming
@@ -143,6 +144,7 @@ internal data class ServerMessage(
     val server: String? = null,
     val serverId: String? = null,
     val sessions: List<RemoteCard>? = null,
+    val usage: List<AgentUsage>? = null,
     val sentAt: String? = null,
     val alert: RemoteAlert? = null,
     val cardId: String? = null,
@@ -238,4 +240,24 @@ data class RemoteApproval(
     val tool: String = "",
     val title: String = "",
     val detail: String? = null,
+)
+
+/** Plan usage of one agent (Mac `AgentUsage`). Dates are ISO 8601 text. */
+@Serializable
+data class AgentUsage(
+    val agent: AgentKind = AgentKind.CLAUDE,
+    val plan: String? = null,
+    val windows: List<UsageWindow> = emptyList(),
+    val updatedAt: String? = null,
+    /** Short reason when there are no numbers ("Not signed in to Claude Code"). */
+    val problem: String? = null,
+)
+
+/** One limit window, e.g. "5h" at 12 % used. */
+@Serializable
+data class UsageWindow(
+    val label: String = "",
+    /** 0..100. */
+    val usedPercent: Double = 0.0,
+    val resetsAt: String? = null,
 )

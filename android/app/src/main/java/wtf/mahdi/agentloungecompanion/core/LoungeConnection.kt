@@ -22,6 +22,7 @@ import wtf.mahdi.agentloungecompanion.data.PairedMac
 import wtf.mahdi.agentloungecompanion.net.DiscoveredMac
 import wtf.mahdi.agentloungecompanion.net.LoungeSockets
 import wtf.mahdi.agentloungecompanion.net.SocketEvent
+import wtf.mahdi.agentloungecompanion.protocol.AgentUsage
 import wtf.mahdi.agentloungecompanion.protocol.ErrorCode
 import wtf.mahdi.agentloungecompanion.protocol.FrameOpener
 import wtf.mahdi.agentloungecompanion.protocol.FrameSealer
@@ -90,6 +91,10 @@ class LoungeConnection(
 
     private val _alerts = MutableSharedFlow<RemoteAlert>(extraBufferCapacity = 32)
     val alerts: SharedFlow<RemoteAlert> = _alerts.asSharedFlow()
+
+    private val _usage = MutableStateFlow<List<AgentUsage>>(emptyList())
+    /** Plan usage of the last snapshot. */
+    val usage: StateFlow<List<AgentUsage>> = _usage.asStateFlow()
 
     private val _pairingLost = MutableStateFlow<ErrorCode?>(null)
     /** Set when the Mac refused the token (phone removed on the Mac). Cleared by a new pairing. */
@@ -242,6 +247,7 @@ class LoungeConnection(
                 }
                 is Incoming.Snapshot -> {
                     _cards.value = incoming.sessions
+                    _usage.value = incoming.usage
                     val open = incoming.sessions.mapNotNull { it.approval?.id }.toSet()
                     _sentDecisions.update { it intersect open }
                 }

@@ -3,6 +3,7 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let store = SessionStore()
     private let preferences = Preferences()
+    private let usage = UsageMonitor()
     private var statusItem: StatusItemController?
     private var panel: PanelController?
     private var server: EventServer?
@@ -13,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: SettingsWindowController?
     private let installer = HookInstaller()
     private var sourceObservation: Task<Void, Never>?
+    private var claudeUsageObservation: Task<Void, Never>?
     private var remote: RemoteHub?
 
     /// Unit tests run inside this app (TEST_HOST). Skip UI and server then.
@@ -77,7 +79,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.server = server
         self.monitor = monitor
 
-        let panel = PanelController(store: store, preferences: preferences)
+        usage.claudeEnabled = { [preferences] in preferences.showsUsage && preferences.claudeUsageEnabled }
+        usage.start()
+        remote.usage = usage
+
+        let panel = PanelController(store: store, preferences: preferences, usage: usage)
         panel.onOpenSettings = { [weak self] in self?.showSettings() }
         let statusItem = StatusItemController(store: store)
         statusItem.onPrimaryClick = { [weak panel] in panel?.toggle() }
@@ -112,6 +118,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 store.disabledSources = Set(SessionSource.allCases).subtracting(enabled)
             }
         }
+        // Read Claude usage at once when it is turned on.
+        let usage = usage
+        claudeUsageObservation = Task {
+            for await _ in Observations({ preferences.showsUsage && preferences.claudeUsageEnabled }) {
+                await usage.refreshClaude()
+            }
+        }
     }
 
     static func hookStatusText(_ status: Result<HookConfig.Status, Error>) -> String {
@@ -131,6 +144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         server?.stop()
         monitor?.stop()
         remote?.stop()
+        usage.stop()
     }
 
     // MARK: - Status item menu (right-click)

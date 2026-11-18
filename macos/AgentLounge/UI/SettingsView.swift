@@ -149,6 +149,9 @@ private struct PanelSection: View {
     var body: some View {
         Section("Panel") {
             Toggle("Pinned panel stays on top of other windows", isOn: $preferences.floatsWhenPinned)
+            Toggle("Show plan usage", isOn: $preferences.showsUsage)
+            Toggle("Claude usage (reads the Claude Code sign-in from the Keychain)", isOn: $preferences.claudeUsageEnabled)
+                .disabled(!preferences.showsUsage)
             Picker("Hide done cards after", selection: $preferences.autoHideDoneMinutes) {
                 ForEach(Preferences.autoHideChoices, id: \.self) { minutes in
                     Text(Self.label(minutes)).tag(minutes)
