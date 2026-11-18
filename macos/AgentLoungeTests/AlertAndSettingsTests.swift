@@ -124,6 +124,8 @@ struct PreferencesTests {
         #expect(preferences.enabledSources == Set(SessionSource.allCases))
         #expect(preferences.alert(.needsInput) == Preferences.defaultAlerts[.needsInput])
         #expect(preferences.alert(.done).showsNotification == false)
+        #expect(preferences.notchEnabled == false)
+        #expect(preferences.notchPlacement == .mouse)
     }
 
     @Test func valuesSurviveReload() {
@@ -134,6 +136,8 @@ struct PreferencesTests {
         preferences.isMuted = true
         preferences.setEnabled(.codex, false)
         preferences.setAlert(.done) { $0.soundName = "Hero"; $0.showsNotification = true }
+        preferences.notchEnabled = true
+        preferences.notchPlacement = .allScreens
 
         let reloaded = Preferences(defaults: defaults)
         #expect(reloaded.floatsWhenPinned == false)
@@ -142,5 +146,7 @@ struct PreferencesTests {
         #expect(reloaded.enabledSources == [.claudeCLI, .claudeApp])
         #expect(reloaded.alert(.done) == AlertSetting(playsSound: true, soundName: "Hero", showsNotification: true))
         #expect(reloaded.alert(.error) == Preferences.defaultAlerts[.error])
+        #expect(reloaded.notchEnabled)
+        #expect(reloaded.notchPlacement == .allScreens)
     }
 }
