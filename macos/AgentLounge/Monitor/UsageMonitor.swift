@@ -7,11 +7,14 @@ import Security
 /// - Codex: newest `rate_limits` in the recent rollouts (`~/.codex/sessions/YYYY/MM/DD`). No network.
 /// - Claude: `GET api.anthropic.com/api/oauth/usage` with the Claude Code sign-in (Keychain item
 ///   "Claude Code-credentials", or `~/.claude/.credentials.json`). Off until the user turns it on:
-///   macOS asks for Keychain access the first time.
+///   macOS asks for Keychain access. The token stays in memory until it expires or is refused, so macOS
+///   asks again only after Claude Code renews it (renewal rewrites the item and drops "Always Allow").
 @Observable
 final class UsageMonitor {
     static let codexInterval: Duration = .seconds(30)
     static let claudeInterval: Duration = .seconds(180)
+    /// Least time between two sign-in reads while the stored token is expired or refused.
+    static let staleCredentialsRetry: TimeInterval = 30 * 60
 
     private(set) var claude: AgentUsage?
     private(set) var codex: AgentUsage?
@@ -22,6 +25,11 @@ final class UsageMonitor {
     @ObservationIgnored var claudeEnabled: () -> Bool = { false }
     @ObservationIgnored private var codexLoop: Task<Void, Never>?
     @ObservationIgnored private var claudeLoop: Task<Void, Never>?
+    /// Claude Code sign-in, in memory only. Each read of the Keychain item can show a macOS prompt.
+    @ObservationIgnored private var claudeCredentials: ClaudeCredentials?
+    @ObservationIgnored private var claudeCredentialsReadAt: Date?
+    /// The cached token was refused (401/403): read again, at most every `staleCredentialsRetry`.
+    @ObservationIgnored private var claudeCredentialsRefused = false
     @ObservationIgnored private let logger = Logger(subsystem: "dev.agentlounge.AgentLounge", category: "Usage")
 
     func start() {
@@ -53,9 +61,23 @@ final class UsageMonitor {
     func refreshClaude() async {
         guard claudeEnabled() else {
             claude = nil
+            claudeCredentials = nil
+            claudeCredentialsReadAt = nil
+            claudeCredentialsRefused = false
             return
         }
-        let result = await Self.fetchClaude()
+        var result: Result<AgentUsage, ClaudeProblem>
+        if let cached = claudeCredentials, !claudeCredentialsRefused, !cached.isExpired {
+            result = await Self.fetchClaude(with: cached)
+            if case .failure(let problem) = result, problem.isRefused {
+                // Claude Code may have renewed the token: read the new one now.
+                claudeCredentialsRefused = true
+                claudeCredentialsReadAt = nil
+                result = await fetchClaudeWithStoredCredentials()
+            }
+        } else {
+            result = await fetchClaudeWithStoredCredentials()
+        }
         switch result {
         case .success(let usage):
             claude = usage
@@ -69,6 +91,32 @@ final class UsageMonitor {
                 claude = AgentUsage(agent: .claude, plan: claude?.plan, windows: [], updatedAt: .now, problem: problem.message)
             }
         }
+    }
+
+    /// Reads the sign-in (Keychain or file) and fetches with it. While the cached token is expired or
+    /// refused, it reads at most every `staleCredentialsRetry`, so a stopped Claude Code does not cause
+    /// a Keychain prompt every poll.
+    private func fetchClaudeWithStoredCredentials() async -> Result<AgentUsage, ClaudeProblem> {
+        let isStale = claudeCredentials.map { $0.isExpired || claudeCredentialsRefused } ?? false
+        if isStale, let readAt = claudeCredentialsReadAt,
+           Date.now.timeIntervalSince(readAt) < Self.staleCredentialsRetry {
+            return .failure(ClaudeProblem(message: "Sign-in expired: start Claude Code"))
+        }
+        let loaded = await Task.detached { Self.loadClaudeCredentials() }.value
+        claudeCredentialsReadAt = .now
+        guard let loaded else {
+            claudeCredentials = nil
+            return .failure(ClaudeProblem(message: "Not signed in to Claude Code"))
+        }
+        if loaded.accessToken != claudeCredentials?.accessToken { claudeCredentialsRefused = false }
+        claudeCredentials = loaded
+        if claudeCredentialsRefused || loaded.isExpired {
+            // Claude Code renews the token when it runs. We do not renew it: that would sign Claude Code out.
+            return .failure(ClaudeProblem(message: "Sign-in expired: start Claude Code"))
+        }
+        let result = await Self.fetchClaude(with: loaded)
+        if case .failure(let problem) = result, problem.isRefused { claudeCredentialsRefused = true }
+        return result
     }
 
     // MARK: - Codex
@@ -121,23 +169,19 @@ final class UsageMonitor {
         var message: String
         /// Rate limit or network: try again later and keep the old numbers.
         var isPassing = false
+        /// The server refused the token (401/403).
+        var isRefused = false
     }
 
     nonisolated struct ClaudeCredentials: Sendable {
         var accessToken: String
         var expiresAt: Date?
         var plan: String?
+
+        var isExpired: Bool { expiresAt.map { $0 < .now } ?? false }
     }
 
-    nonisolated static func fetchClaude() async -> Result<AgentUsage, ClaudeProblem> {
-        let credentials = await Task.detached { loadClaudeCredentials() }.value
-        guard let credentials else {
-            return .failure(ClaudeProblem(message: "Not signed in to Claude Code"))
-        }
-        if let expiresAt = credentials.expiresAt, expiresAt < .now {
-            // Claude Code renews the token when it runs. We do not renew it: that would sign Claude Code out.
-            return .failure(ClaudeProblem(message: "Sign-in expired: start Claude Code"))
-        }
+    nonisolated static func fetchClaude(with credentials: ClaudeCredentials) async -> Result<AgentUsage, ClaudeProblem> {
         var request = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/usage")!, timeoutInterval: 15)
         request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
@@ -152,7 +196,7 @@ final class UsageMonitor {
                 }
                 return .success(AgentUsage(agent: .claude, plan: credentials.plan, windows: windows, updatedAt: .now))
             case 401, 403:
-                return .failure(ClaudeProblem(message: "Sign-in expired: start Claude Code"))
+                return .failure(ClaudeProblem(message: "Sign-in expired: start Claude Code", isRefused: true))
             case 429:
                 return .failure(ClaudeProblem(message: "Rate limited", isPassing: true))
             default:
