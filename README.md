@@ -16,9 +16,16 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
 </p>
 
-<p align="center">
-  <img src="docs/assets/screenshot.png" width="460" alt="Agent Lounge panel with three Claude Code sessions">
-</p>
+<table align="center">
+  <tr>
+    <th>macOS app</th>
+    <th>Android companion</th>
+  </tr>
+  <tr>
+    <td><img src="docs/assets/screenshot.png" width="400" alt="Agent Lounge menu-bar panel on macOS with three Claude Code sessions"></td>
+    <td><img src="docs/assets/phone.png" width="400" alt="Agent Lounge Companion on Android with the same three sessions"></td>
+  </tr>
+</table>
 
 ---
 
