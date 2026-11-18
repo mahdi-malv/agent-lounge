@@ -1,0 +1,96 @@
+# XcodeGen spec. Generate the project with `make project` from the repo root.
+# The generated AgentLounge.xcodeproj is not committed.
+name: AgentLounge
+
+options:
+  bundleIdPrefix: dev.agentlounge
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    # Default: ad-hoc signing. For a stable identity (Accessibility/Automation permissions
+    # survive rebuilds) set SIGN_IDENTITY in the git-ignored local.mk, see Makefile.
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    DEAD_CODE_STRIPPING: YES
+
+targets:
+  AgentLounge:
+    type: application
+    platform: macOS
+    sources:
+      - AgentLounge
+    settings:
+      base:
+        PRODUCT_NAME: Agent Lounge
+        PRODUCT_MODULE_NAME: AgentLounge
+        PRODUCT_BUNDLE_IDENTIFIER: dev.agentlounge.AgentLounge
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_LSUIElement: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Agent Lounge
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
+        # PNGs rendered from AppIconView by scripts/make-icon.sh.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Ghostty focus uses AppleScript (Automation permission).
+        INFOPLIST_KEY_NSAppleEventsUsageDescription: "Agent Lounge asks your terminal to show the tab of the agent you clicked."
+        # Phone access (M8): LAN listener advertised with Bonjour.
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: "Agent Lounge shows your agent sessions in the phone app on this network."
+        ENABLE_APP_SANDBOX: NO
+        ENABLE_HARDENED_RUNTIME: NO
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+    dependencies:
+      # Bundled at Agent Lounge.app/Contents/Resources/bin/lounge-hook (PLAN §3).
+      - target: lounge-hook
+        embed: true
+        codeSign: true
+        copy:
+          destination: resources
+          subpath: bin
+
+  lounge-hook:
+    type: tool
+    platform: macOS
+    sources:
+      - LoungeHook
+    settings:
+      base:
+        PRODUCT_NAME: lounge-hook
+        PRODUCT_BUNDLE_IDENTIFIER: dev.agentlounge.lounge-hook
+        SKIP_INSTALL: YES
+
+  AgentLoungeTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - AgentLoungeTests
+    dependencies:
+      - target: AgentLounge
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.agentlounge.AgentLoungeTests
+        GENERATE_INFOPLIST_FILE: YES
+        # Product name has a space, so XcodeGen's default TEST_HOST is wrong.
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Agent Lounge.app/Contents/MacOS/Agent Lounge"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+
+schemes:
+  AgentLounge:
+    build:
+      targets:
+        AgentLounge: all
+        lounge-hook: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - AgentLoungeTests

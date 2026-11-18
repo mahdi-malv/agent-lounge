@@ -1,0 +1,112 @@
+<resources>
+    <string name="app_name">Agent Lounge</string>
+
+    <!-- States -->
+    <string name="state_running">Running</string>
+    <string name="state_needs_input">Needs input</string>
+    <string name="state_done">Done</string>
+    <string name="state_error">Error</string>
+
+    <!-- Actions -->
+    <string name="action_allow">Allow</string>
+    <string name="action_continue">Continue</string>
+    <string name="action_change">Change</string>
+    <string name="action_pair">Pair</string>
+    <string name="action_retry">Retry now</string>
+    <string name="action_back">Back</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_deny">Deny</string>
+    <string name="action_allow_once">Allow</string>
+
+    <!-- Approvals -->
+    <string name="approval_title">Claude asks: %s</string>
+    <string name="approval_sent">Answer sent. Waiting for the Mac…</string>
+    <string name="action_send">Send</string>
+    <string name="prompt_hint">Message to the agent</string>
+    <string name="prompt_sending">Sending</string>
+    <string name="prompt_sent">Sent to the terminal on the Mac.</string>
+    <string name="prompt_failed">The Mac could not type the prompt.</string>
+    <string name="decide_not_connected">Not connected to the Mac. Try again when connected.</string>
+
+    <!-- Permissions -->
+    <string name="permission_local_network">Agent Lounge needs access to devices on your local network to find and reach your Mac.</string>
+    <string name="permission_notifications">Notifications are off. Allow them to get alerts when an agent needs you.</string>
+
+    <!-- Pairing -->
+    <string name="pair_title">Pair with your Mac</string>
+    <string name="pair_intro">On the Mac, open Agent Lounge → Settings → Phone. Turn on phone access, then click “Pair a Phone…”. Use the same Wi-Fi network as the Mac.</string>
+    <string name="pair_macs_header">Macs on this network</string>
+    <string name="pair_searching">Searching… Phone access must be on in the Mac app.</string>
+    <string name="pair_discovery_failed">Search failed. Enter the address shown in the Mac settings.</string>
+    <string name="pair_discovery_needs_permission">Allow local network access to search.</string>
+    <string name="pair_manual_show">Enter address manually</string>
+    <string name="pair_manual_hide">Hide manual address</string>
+    <string name="pair_manual_host">IP address</string>
+    <string name="pair_manual_port">Port</string>
+    <string name="pair_code_hint">Enter the 6-digit code that the Mac shows.</string>
+    <string name="pair_code">Pairing code</string>
+    <string name="pair_device_name">Name of this phone</string>
+    <string name="pair_device_name_hint">Shown in the Mac settings.</string>
+    <string name="pair_error_code">Wrong code. Check the code on the Mac. After 5 wrong tries the Mac needs a new code.</string>
+    <string name="pair_error_no_pairing">The Mac has no open code. Click “Pair a Phone…” on the Mac again.</string>
+    <string name="pair_error_unreachable">Cannot reach the Mac (%1$s). Check that phone access is on and that both are on the same network.</string>
+    <string name="pair_error_address">Enter an IP address and a port (1–65535).</string>
+    <string name="pair_lost">The Mac removed this phone. Pair again to see your agents.</string>
+
+    <!-- Lounge -->
+    <plurals name="status_connected">
+        <item quantity="one">Connected · %d agent</item>
+        <item quantity="other">Connected · %d agents</item>
+    </plurals>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_waiting">Cannot reach the Mac. Next try in %d s.</string>
+    <string name="status_paused">Paused</string>
+    <string name="empty_title">No agents running</string>
+    <string name="empty_offline">Not connected</string>
+    <string name="empty_hint">Cards show here when Claude Code or Codex runs on the Mac.</string>
+    <string name="detail_model">Model</string>
+    <string name="detail_branch">Branch</string>
+    <string name="detail_folder">Folder</string>
+    <string name="detail_running_for">Running for</string>
+    <string name="detail_last_event">Last event</string>
+    <string name="detail_subagents">Subagents</string>
+    <string name="detail_context">Context</string>
+    <string name="detail_tasks">Tasks</string>
+    <string name="ago">%s ago</string>
+    <string name="cd_avatar">Agent, %s</string>
+    <string name="cd_expanded">Expanded</string>
+    <string name="cd_collapsed">Collapsed</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_mac">Mac</string>
+    <string name="settings_forget">Forget</string>
+    <string name="settings_alerts">Alerts</string>
+    <string name="settings_background">Alerts when the app is closed</string>
+    <string name="settings_background_detail">Keeps the connection open in the background. Shows a silent notification while on.</string>
+    <string name="settings_notify_needs_input">Needs input</string>
+    <string name="settings_notify_needs_input_detail">An agent asks for permission or an answer.</string>
+    <string name="settings_notify_done">Done</string>
+    <string name="settings_notify_done_detail">An agent finished its turn.</string>
+    <string name="settings_notify_error">Error</string>
+    <string name="settings_notify_error_detail">An agent stopped with an error.</string>
+    <string name="settings_sounds">Sounds and notification style…</string>
+    <string name="settings_about">About</string>
+    <string name="settings_security_note">This phone can answer Claude permission requests and type prompts into Ghostty sessions on the Mac. The connection is encrypted with a key made at pairing. Pair only on a network you trust.</string>
+    <string name="forget_title">Forget %s?</string>
+    <string name="forget_text">The phone stops getting cards and alerts. To connect again, pair with a new code. To also remove this phone on the Mac, use Settings → Phone on the Mac.</string>
+
+    <!-- Notifications -->
+    <string name="channel_needs_input">Needs input</string>
+    <string name="channel_done">Done</string>
+    <string name="channel_error">Errors</string>
+    <string name="channel_connection">Connection</string>
+    <string name="ongoing_connected">Connected to %s</string>
+    <string name="ongoing_connecting">Connecting to your Mac…</string>
+    <string name="ongoing_paused">Paused</string>
+    <string name="ongoing_no_agents">No agents running</string>
+    <plurals name="ongoing_agents">
+        <item quantity="one">%1$d agent · %2$d running · %3$d waiting</item>
+        <item quantity="other">%1$d agents · %2$d running · %3$d waiting</item>
+    </plurals>
+</resources>
