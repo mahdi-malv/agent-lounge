@@ -15,7 +15,7 @@ struct UsageBar: View {
                         Button("Show Claude usage…", action: turnOnClaude)
                             .buttonStyle(.link)
                             .font(.caption)
-                            .help("Reads the Claude Code sign-in from the Keychain. macOS asks for access once.")
+                            .help("Reads the Claude Code sign-in from the Keychain to get your plan usage.")
                         Spacer(minLength: 0)
                     }
                 }

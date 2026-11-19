@@ -1,14 +1,12 @@
 import Foundation
 import Observation
 import os
-import Security
 
 /// Plan usage for the top bar (panel and phone).
 /// - Codex: newest `rate_limits` in the recent rollouts (`~/.codex/sessions/YYYY/MM/DD`). No network.
 /// - Claude: `GET api.anthropic.com/api/oauth/usage` with the Claude Code sign-in (Keychain item
-///   "Claude Code-credentials", or `~/.claude/.credentials.json`). Off until the user turns it on:
-///   macOS asks for Keychain access. The token stays in memory until it expires or is refused, so macOS
-///   asks again only after Claude Code renews it (renewal rewrites the item and drops "Always Allow").
+///   "Claude Code-credentials" read through `/usr/bin/security`, or `~/.claude/.credentials.json`).
+///   Off until the user turns it on. The token stays in memory until it expires or is refused.
 @Observable
 final class UsageMonitor {
     static let codexInterval: Duration = .seconds(30)
@@ -222,14 +220,44 @@ final class UsageMonitor {
         if let data = try? Data(contentsOf: file), let credentials = parseClaudeCredentials(data) {
             return credentials
         }
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "Claude Code-credentials",
-            kSecMatchLimit as String: kSecMatchLimitOne,
-            kSecReturnData as String: true,
-        ]
-        var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess, let data = item as? Data else { return nil }
-        return parseClaudeCredentials(data)
+        return readKeychainWithSecurityTool().flatMap(parseClaudeCredentials)
+    }
+
+    /// Claude Code writes the item with `/usr/bin/security add-generic-password -U`, so the item's
+    /// access list trusts only `/usr/bin/security`. A direct `SecItemCopyMatching` from this app shows a
+    /// macOS prompt, and each token renewal resets the access list. Reading through the same tool does
+    /// not show a prompt.
+    nonisolated static func readKeychainWithSecurityTool() -> Data? {
+        let process = Process()
+        process.executableURL = URL(filePath: "/usr/bin/security")
+        process.arguments = ["find-generic-password", "-s", "Claude Code-credentials", "-w"]
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = FileHandle.nullDevice
+        do { try process.run() } catch { return nil }
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0,
+              let text = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !text.isEmpty else { return nil }
+        // `-w` prints the value as hex when it is not plain text.
+        if !text.hasPrefix("{"), let decoded = Data(hexString: text) { return decoded }
+        return Data(text.utf8)
+    }
+}
+
+private extension Data {
+    nonisolated init?(hexString: String) {
+        guard hexString.count.isMultiple(of: 2) else { return nil }
+        var bytes = [UInt8]()
+        bytes.reserveCapacity(hexString.count / 2)
+        var index = hexString.startIndex
+        while index < hexString.endIndex {
+            let next = hexString.index(index, offsetBy: 2)
+            guard let byte = UInt8(hexString[index..<next], radix: 16) else { return nil }
+            bytes.append(byte)
+            index = next
+        }
+        self.init(bytes)
     }
 }

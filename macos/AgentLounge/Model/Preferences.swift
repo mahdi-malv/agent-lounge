@@ -64,7 +64,7 @@ final class Preferences {
     }
 
     /// Read the Claude Code sign-in from the Keychain to get Claude plan usage. Off by default:
-    /// macOS asks for Keychain access.
+    /// it reads a secret that another app owns.
     var claudeUsageEnabled: Bool {
         didSet { defaults.set(claudeUsageEnabled, forKey: Key.claudeUsage) }
     }
