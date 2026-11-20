@@ -22,8 +22,8 @@
     <th>Android companion</th>
   </tr>
   <tr>
-    <td><img src="docs/assets/screenshot.png" width="400" alt="Agent Lounge menu-bar panel on macOS with three Claude Code sessions"></td>
-    <td><img src="docs/assets/phone.png" width="400" alt="Agent Lounge Companion on Android with the same three sessions"></td>
+    <td><img src="docs/assets/screenshot.png" width="400" alt="Agent Lounge menu-bar panel on macOS: one planet per session, subagent rows under their cards"></td>
+    <td><img src="docs/assets/phone.png" width="400" alt="Agent Lounge Companion on Android with the same sessions, planets and subagent rows"></td>
   </tr>
 </table>
 
