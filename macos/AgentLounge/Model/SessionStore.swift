@@ -24,11 +24,7 @@ final class SessionStore {
     }
 
     var summary: StoreSummary {
-        let visible = visibleSessions
-        return StoreSummary(
-            count: visible.count,
-            topState: visible.map(\.state).max(by: { $0.urgency < $1.urgency })
-        )
+        StoreSummary(states: visibleSessions.map(\.state))
     }
 
     func session(_ id: AgentSession.ID) -> AgentSession? {

@@ -102,7 +102,8 @@ struct SessionStoreTests {
         let store = SessionStore()
         store.apply(TestEvents.event("PreToolUse", extra: TestEvents.bash("ls")))
         #expect(store.visibleSessions.count == 1)
-        #expect(store.summary == StoreSummary(count: 1, topState: .running))
+        #expect(store.summary.count == 1)
+        #expect(store.summary.topState == .running)
     }
 
     @Test func hiddenCardReturnsOnNextEvent() {
@@ -140,6 +141,26 @@ struct SessionStoreTests {
         store.apply(TestEvents.event("UserPromptSubmit", sessionId: "a"))
         store.apply(TestEvents.event("Stop", sessionId: "b"))
         store.apply(TestEvents.event("PermissionRequest", sessionId: "c", extra: TestEvents.bash("rm")))
-        #expect(store.summary == StoreSummary(count: 3, topState: .needsInput))
+        #expect(store.summary.count == 3)
+        #expect(store.summary.topState == .needsInput)
+    }
+
+    /// 1 running + 5 done must not read as "Running 6".
+    @Test func summaryCountsEachState() {
+        let store = SessionStore()
+        store.apply(TestEvents.event("UserPromptSubmit", sessionId: "run"))
+        for id in ["d1", "d2", "d3", "d4", "d5"] { store.apply(TestEvents.event("Stop", sessionId: id)) }
+        #expect(store.summary.counts == [StateCount(state: .running, count: 1), StateCount(state: .idle, count: 5)])
+        #expect(store.summary.count == 6)
+        #expect(store.summary.spokenCounts == "1 running, 5 done")
+    }
+
+    @Test func summaryOrdersByUrgencyAndSkipsEmptyStates() {
+        let summary = StoreSummary(states: [.idle, .running, .error, .idle, .needsInput, .running])
+        #expect(summary.counts.map(\.state) == [.needsInput, .error, .running, .idle])
+        #expect(summary.counts.map(\.count) == [1, 1, 2, 2])
+        #expect(StoreSummary(states: [.idle]).counts == [StateCount(state: .idle, count: 1)])
+        #expect(StoreSummary(states: []).counts.isEmpty)
+        #expect(StoreSummary(states: []).topState == nil)
     }
 }

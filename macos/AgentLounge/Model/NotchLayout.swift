@@ -59,13 +59,16 @@ nonisolated enum NotchLayout {
     static let rowHeight: CGFloat = 40
     static let bottomPadding: CGFloat = 8
     /// Status area on each side of a real notch.
-    static let wingWidth: CGFloat = 44
+    /// Room for two state counts.
+    static let wingWidth: CGFloat = 52
     /// Pill width on a screen without a notch.
-    static let plainWidth: CGFloat = 150
+    static let plainWidth: CGFloat = 170
     static let expandedWidth: CGFloat = 400
     /// Concave flare at each top corner. Part of the pill width.
     static func topRadius(expanded: Bool) -> CGFloat { expanded ? 10 : 6 }
     static func bottomRadius(expanded: Bool) -> CGFloat { expanded ? 18 : 9 }
+    /// Inset of the header content from each side of the pill.
+    static func headerPadding(expanded: Bool) -> CGFloat { topRadius(expanded: expanded) + (expanded ? 10 : 6) }
 
     static func collapsedSize(_ geometry: NotchGeometry) -> CGSize {
         let flares = 2 * topRadius(expanded: false)

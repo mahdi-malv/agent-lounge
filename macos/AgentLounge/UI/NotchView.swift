@@ -31,7 +31,7 @@ struct NotchView: View {
         )
 
         VStack(spacing: 0) {
-            NotchHeader(summary: store.summary, geometry: geometry, expanded: expanded)
+            NotchHeader(summary: store.summary, geometry: geometry, width: size.width, expanded: expanded)
                 .frame(height: geometry.barHeight)
                 .contentShape(Rectangle())
                 .onTapGesture(perform: onOpenPanel)
@@ -60,27 +60,101 @@ struct NotchView: View {
 private struct NotchHeader: View {
     let summary: StoreSummary
     let geometry: NotchGeometry
+    /// Pill width.
+    let width: CGFloat
     let expanded: Bool
 
+    /// Left: most urgent state with its count (and its name when there is room).
+    /// Right: the other states with their counts. Least urgent counts drop when there is no room.
     var body: some View {
-        let state = summary.topState ?? .idle
-        HStack(spacing: 6) {
-            StateDot(state: state)
-            if !geometry.hasNotch || expanded {
-                Text(state.label)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color(nsColor: state.statusColor))
-                    .lineLimit(1)
+        let padding = NotchLayout.headerPadding(expanded: expanded)
+        let showsLabel = !geometry.hasNotch || expanded
+        let top = summary.counts.first
+        let rest = Array(summary.counts.dropFirst())
+        Group {
+            if geometry.hasNotch {
+                // One side of the camera housing each; nothing may go under it.
+                let side = max((width - geometry.notchWidth) / 2 - padding, 0)
+                HStack(spacing: 0) {
+                    TopCount(item: top, showsLabel: showsLabel)
+                        .frame(width: side, alignment: .leading)
+                    Spacer(minLength: 0)
+                    OtherCounts(items: rest)
+                        .frame(width: side, alignment: .trailing)
+                }
+            } else {
+                HStack(spacing: 0) {
+                    TopCount(item: top, showsLabel: showsLabel)
+                        .fixedSize()
+                    OtherCounts(items: rest)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .padding(.leading, 6)
+                }
             }
-            Spacer(minLength: geometry.hasNotch ? geometry.notchWidth : 4)
-            Text("\(summary.count)")
+        }
+        .padding(.horizontal, padding)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Agent Lounge, \(summary.count) agents: \(summary.spokenCounts)")
+        .accessibilityAddTraits(.isButton)
+    }
+}
+
+/// Most urgent state: dot, count and, when it fits, the state name.
+private struct TopCount: View {
+    let item: StateCount?
+    let showsLabel: Bool
+
+    var body: some View {
+        if let item {
+            ViewThatFits(in: .horizontal) {
+                if showsLabel {
+                    HStack(spacing: 5) {
+                        StateCountChip(item: item)
+                        Text(item.state.label)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Color(nsColor: item.state.statusColor))
+                            .lineLimit(1)
+                    }
+                }
+                StateCountChip(item: item)
+            }
+        }
+    }
+}
+
+/// Other states, most urgent first. Shows as many as fit (at most 3 states remain).
+private struct OtherCounts: View {
+    let items: [StateCount]
+
+    var body: some View {
+        if !items.isEmpty {
+            ViewThatFits(in: .horizontal) {
+                chips(items)
+                chips(Array(items.prefix(2)))
+                chips(Array(items.prefix(1)))
+            }
+        }
+    }
+
+    private func chips(_ items: [StateCount]) -> some View {
+        HStack(spacing: 6) {
+            ForEach(items, id: \.state) { StateCountChip(item: $0) }
+        }
+    }
+}
+
+private struct StateCountChip: View {
+    let item: StateCount
+
+    var body: some View {
+        HStack(spacing: 3) {
+            StateDot(state: item.state)
+            Text("\(item.count)")
                 .font(.system(size: 12, weight: .semibold).monospacedDigit())
                 .foregroundStyle(.white)
+                .lineLimit(1)
         }
-        .padding(.horizontal, NotchLayout.topRadius(expanded: expanded) + 10)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Agent Lounge, \(summary.count) agents, \(state.label)")
-        .accessibilityAddTraits(.isButton)
+        .fixedSize()
     }
 }
 

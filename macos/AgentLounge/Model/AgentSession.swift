@@ -173,10 +173,32 @@ nonisolated struct AgentSession: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-nonisolated struct StoreSummary: Equatable, Sendable {
+/// Number of visible cards in one state.
+nonisolated struct StateCount: Equatable, Hashable, Sendable {
+    var state: SessionState
     var count: Int
+}
+
+nonisolated struct StoreSummary: Equatable, Sendable {
+    /// Visible cards per state, most urgent state first. Only states that have cards.
+    var counts: [StateCount]
+
+    init(states: [SessionState]) {
+        counts = SessionState.allCases
+            .map { state in StateCount(state: state, count: states.count { $0 == state }) }
+            .filter { $0.count > 0 }
+            .sorted { $0.state.urgency > $1.state.urgency }
+    }
+
+    var count: Int { counts.reduce(0) { $0 + $1.count } }
+
     /// Most urgent state of the visible cards, or nil when there are none.
-    var topState: SessionState?
+    var topState: SessionState? { counts.first?.state }
+
+    /// Spoken form, e.g. "1 running, 5 done".
+    var spokenCounts: String {
+        counts.map { "\($0.count) \($0.state.label.lowercased())" }.joined(separator: ", ")
+    }
 }
 
 nonisolated extension String {

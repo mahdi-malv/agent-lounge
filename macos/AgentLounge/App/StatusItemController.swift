@@ -54,23 +54,26 @@ final class StatusItemController: NSObject {
 
     private func render(_ summary: StoreSummary) {
         guard let button = statusItem.button else { return }
-        guard summary.count > 0, let state = summary.topState else {
+        guard summary.count > 0 else {
             button.attributedTitle = NSAttributedString()
             button.setAccessibilityLabel("Agent Lounge, no agents")
             return
         }
 
+        // One colored dot and count per state, most urgent first: " ● 1 ● 5".
         let title = NSMutableAttributedString()
-        title.append(NSAttributedString(string: " ●", attributes: [
-            .foregroundColor: state.statusColor,
-            .font: NSFont.systemFont(ofSize: 9),
-            .baselineOffset: 1.5,
-        ]))
-        title.append(NSAttributedString(string: " \(summary.count)", attributes: [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .medium),
-        ]))
+        for item in summary.counts {
+            title.append(NSAttributedString(string: " ●", attributes: [
+                .foregroundColor: item.state.statusColor,
+                .font: NSFont.systemFont(ofSize: 9),
+                .baselineOffset: 1.5,
+            ]))
+            title.append(NSAttributedString(string: " \(item.count)", attributes: [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .medium),
+            ]))
+        }
         button.attributedTitle = title
-        button.setAccessibilityLabel("Agent Lounge, \(summary.count) agents, \(state.label)")
+        button.setAccessibilityLabel("Agent Lounge, \(summary.count) agents: \(summary.spokenCounts)")
     }
 
     @objc private func handleClick(_ sender: NSStatusBarButton) {
