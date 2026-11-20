@@ -24,19 +24,4 @@ object LoungeColors {
         SessionState.IDLE -> Idle
         SessionState.ERROR -> Error
     }
-
-    /** Project palette (Mac `ProjectPalette.colors`), index from `CardFormat`. */
-    private val projects = listOf(
-        Color(0.38f, 0.56f, 0.95f), // blue
-        Color(0.95f, 0.50f, 0.72f), // pink
-        Color(0.97f, 0.68f, 0.40f), // peach
-        Color(0.38f, 0.80f, 0.56f), // green
-        Color(0.67f, 0.57f, 0.98f), // violet
-        Color(0.27f, 0.79f, 0.79f), // teal
-        Color(0.96f, 0.80f, 0.33f), // yellow
-        Color(0.66f, 0.85f, 0.38f), // lime
-        Color(0.36f, 0.72f, 0.97f), // sky
-    )
-
-    fun project(index: Int): Color = projects[index.mod(projects.size)]
 }

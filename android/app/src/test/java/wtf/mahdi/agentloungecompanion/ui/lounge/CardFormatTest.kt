@@ -71,7 +71,43 @@ class CardFormatTest {
         assertEquals(CardUi.ContextUi("50k / 200k", 0.25f), ui.context)
         assertEquals(listOf("Write", "Testing"), ui.tasks.map { it.text })
         assertNull(ui.lastMessage)
-        assertEquals((CardFormat.fnv1a("app") % 9uL).toInt(), ui.colorIndex)
+        assertEquals("app", ui.planetSeed)
+        assertNull(ui.planetIdentity)
+    }
+
+    @Test
+    fun planetFromMacWins() {
+        val ui = CardFormat.toUi(RemoteCard(id = "a", project = "app", planetSeed = "app #2", planetIdentity = 17), nowMillis = 0)
+        assertEquals("app #2", ui.planetSeed)
+        assertEquals(17, ui.planetIdentity)
+    }
+
+    @Test
+    fun planetFallsBackToTitleWithoutProject() {
+        val ui = CardFormat.toUi(RemoteCard(id = "a", title = "notes"), nowMillis = 0)
+        assertEquals("notes", ui.planetSeed)
+    }
+
+    @Test
+    fun subagentRows() {
+        val card = RemoteCard(
+            id = "a",
+            state = SessionState.IDLE,
+            subagents = listOf(
+                RemoteCard.Subagent("s1", "Explore", "Reading Foo.kt"),
+                RemoteCard.Subagent("s2", "", " "),
+            ),
+        )
+        val ui = CardFormat.toUi(card, nowMillis = 0)
+        assertEquals(
+            listOf(CardUi.SubagentUi("s1", "Explore", "Reading Foo.kt"), CardUi.SubagentUi("s2", "Subagent", null)),
+            ui.subagents,
+        )
+        // Done, but a background subagent still works: the planet keeps turning.
+        assertEquals(SessionState.RUNNING, ui.avatarState)
+        assertEquals(SessionState.IDLE, CardFormat.toUi(card.copy(subagents = emptyList()), nowMillis = 0).avatarState)
+        // Other states are not changed by subagents.
+        assertEquals(SessionState.NEEDS_INPUT, CardFormat.toUi(card.copy(state = SessionState.NEEDS_INPUT), nowMillis = 0).avatarState)
     }
 
     @Test

@@ -54,6 +54,23 @@ class ProtocolTest {
         assertEquals(RemoteCard.Context(24000, 258000), card.context)
         assertEquals(100_000L, LoungeProtocol.epochMillis("1970-01-01T00:01:40Z"))
         assertTrue(card.attention == null && card.permissionMode == null)
+        // An older Mac app sends no subagents and no planet.
+        assertTrue(card.subagents.isEmpty() && card.planetSeed == null && card.planetIdentity == null)
+    }
+
+    @Test
+    fun subagentsAndPlanet() {
+        val snapshot = LoungeProtocol.parse(
+            """{"type":"snapshot","sessions":[{"id":"x","planetIdentity":17,"planetSeed":"app #2",
+            "subagents":[{"activity":"Reading Foo.swift","id":"a1","name":"Explore"},{"id":"a2","name":"Plan"}]}]}""",
+        ) as Incoming.Snapshot
+        val card = snapshot.sessions.single()
+        assertEquals("app #2", card.planetSeed)
+        assertEquals(17, card.planetIdentity)
+        assertEquals(
+            listOf(RemoteCard.Subagent("a1", "Explore", "Reading Foo.swift"), RemoteCard.Subagent("a2", "Plan")),
+            card.subagents,
+        )
     }
 
     @Test

@@ -174,8 +174,12 @@ final class RemoteHub {
     }
 
     private static func content(_ store: SessionStore, _ approvals: ApprovalCenter?, _ usage: UsageMonitor?) -> SnapshotContent {
-        SnapshotContent(
-            cards: store.visibleSessions.map { RemoteCard($0, approval: approvals?.first(for: $0.id)) },
+        // Same planets as the panel: sync with all sessions first, like the panel does.
+        PlanetRegistry.sync(store.sessions)
+        return SnapshotContent(
+            cards: store.visibleSessions.map {
+                RemoteCard($0, approval: approvals?.first(for: $0.id), planet: PlanetRegistry.planet(for: $0))
+            },
             usage: usage?.usages
         )
     }

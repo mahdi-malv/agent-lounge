@@ -70,6 +70,7 @@
     <string name="detail_running_for">Running for</string>
     <string name="detail_last_event">Last event</string>
     <string name="detail_subagents">Subagents</string>
+    <string name="subagent_working">Working…</string>
     <string name="detail_context">Context</string>
     <string name="detail_tasks">Tasks</string>
     <string name="detail_last_reply">Last reply</string>

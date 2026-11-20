@@ -21,6 +21,8 @@ struct PanelView: View {
 
     var body: some View {
         let sessions = store.visibleSessions
+        // Every live session gets its own planet, also the hidden ones.
+        let _ = PlanetRegistry.sync(store.sessions)
         VStack(spacing: 0) {
             PanelHeader(
                 count: sessions.count,
@@ -160,8 +162,8 @@ private struct EmptyLoungeView: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            AvatarView(state: .idle, color: ProjectPalette.colors[4])
-                .frame(width: 44, height: 52)
+            AvatarView(state: .idle, look: PlanetLook.make(seed: "Agent Lounge"))
+                .frame(width: 52, height: 52)
             Text("No agents running")
                 .font(.headline)
             Text("Sessions show up here when Claude Code or Codex starts. The agents need the Agent Lounge hooks.")

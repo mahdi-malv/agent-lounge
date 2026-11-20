@@ -15,11 +15,12 @@ struct TileView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: 12) {
                 AvatarView(
-                    state: session.state,
-                    color: ProjectPalette.color(for: session.projectName),
+                    state: session.avatarState,
+                    look: PlanetRegistry.look(for: session),
+                    moons: session.subagents.map(\.name),
                     phase: ProjectPalette.phase(for: session.id)
                 )
-                .frame(width: 44, height: 52)
+                .frame(width: 52, height: 52)
 
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
@@ -45,6 +46,11 @@ struct TileView: View {
                 }
             }
 
+            if !session.subagents.isEmpty {
+                SubagentList(subagents: session.subagents, isRunning: session.avatarState == .running)
+                    .padding(.top, 8)
+            }
+
             if isExpanded {
                 TileDetailsView(session: session)
                     .padding(.top, 10)
@@ -59,6 +65,49 @@ struct TileView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(session.displayTitle), \(session.state.label)")
         .accessibilityAction(named: isExpanded ? "Collapse" : "Expand", onToggleExpand)
+    }
+}
+
+/// Running subagents, indented under their parent. Each has its moon, its name, and what it does now.
+private struct SubagentList: View {
+    let subagents: [Subagent]
+    /// The parent runs: the moons turn.
+    let isRunning: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(subagents) { subagent in
+                HStack(spacing: 8) {
+                    MoonAvatarView(
+                        name: subagent.name,
+                        isAnimated: isRunning,
+                        phase: ProjectPalette.phase(for: subagent.id)
+                    )
+                    .frame(width: 22, height: 22)
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(subagent.name)
+                            .font(.callout.weight(.semibold))
+                            .lineLimit(1)
+                        Text(InlineMarkdown.text(subagent.activity ?? "Working…"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Subagent \(subagent.name), \(subagent.activity ?? "working")")
+            }
+        }
+        .padding(.leading, 14)
+        // Line from the parent's planet down along its subagents.
+        .overlay(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 1)
+                .fill(Color.primary.opacity(0.18))
+                .frame(width: 2)
+        }
+        .padding(.leading, 25)
     }
 }
 

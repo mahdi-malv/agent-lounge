@@ -203,6 +203,11 @@ data class RemoteCard(
     val startedAt: String? = null,
     val lastEventAt: String? = null,
     val subagentCount: Int = 0,
+    /** Running subagents, oldest first. Empty from a Mac app without subagent rows. */
+    val subagents: List<Subagent> = emptyList(),
+    /** The Mac's planet for this card. Null from an older Mac app: the phone then picks one from the project. */
+    val planetSeed: String? = null,
+    val planetIdentity: Int? = null,
     val context: Context? = null,
     val lastMessage: String? = null,
     /** Open permission request this phone may answer. */
@@ -222,6 +227,9 @@ data class RemoteCard(
 
     @Serializable
     data class Context(val usedTokens: Int, val limitTokens: Int)
+
+    @Serializable
+    data class Subagent(val id: String, val name: String = "", val activity: String? = null)
 }
 
 @Serializable

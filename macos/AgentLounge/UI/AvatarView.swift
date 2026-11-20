@@ -1,15 +1,18 @@
 import SwiftUI
 
-/// Agent Lounge mascot: a rounded critter with an antenna.
-/// Body color = project. Face, antenna bulb, and badge = state.
+/// Agent Lounge avatar: a planet. Each session has its own planet (`PlanetRegistry`, `PlanetLook`).
+/// Running subagents orbit it as moons (`MoonLook`).
 ///
-/// - running: eyes scan left/right, body bobs, bulb glows.
-/// - needsInput: wide eyes look up, "o" mouth, pulsing "!" badge.
-/// - idle (done): happy closed eyes, smile, blush.
-/// - error: grey-tinted body, X eyes, frown, red bulb.
+/// - running: the planet turns and floats, moons orbit, lava pulses.
+/// - needsInput: the planet rocks, orange glow, pulsing "!" badge.
+/// - idle (done): the sun shines from behind the planet.
+/// - error: eclipse, a shadow covers half of the planet.
 struct AvatarView: View {
     let state: SessionState
-    let color: Color
+    /// The session's planet.
+    let look: PlanetLook
+    /// Names of the running subagents, drawn as moons (at most 5).
+    var moons: [String] = []
     var phase: Double = 0
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -19,10 +22,11 @@ struct AvatarView: View {
     }
 
     var body: some View {
+        let moonLooks = moons.prefix(5).map { MoonLook.make(name: $0) }
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !isAnimated)) { timeline in
             let time = isAnimated ? timeline.date.timeIntervalSinceReferenceDate + phase : 0
             Canvas { context, size in
-                AvatarPainter(state: state, color: color, time: time).paint(in: &context, size: size)
+                AvatarPainter(state: state, look: look, moons: moonLooks, time: time).paint(in: &context, size: size)
             }
         }
         .aspectRatio(AvatarPainter.designSize.width / AvatarPainter.designSize.height, contentMode: .fit)
@@ -31,31 +35,114 @@ struct AvatarView: View {
     }
 }
 
-/// Draws in a 44 × 52 design space, scaled to the target size.
+/// A subagent's moon, for its row under the parent card. Turns while the parent runs.
+struct MoonAvatarView: View {
+    let name: String
+    var isAnimated: Bool = false
+    var phase: Double = 0
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        let look = MoonLook.make(name: name)
+        let animated = isAnimated && !reduceMotion
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !animated)) { timeline in
+            let time = animated ? timeline.date.timeIntervalSinceReferenceDate + phase : 0
+            Canvas { context, size in
+                MoonPainter(look: look, time: time).paint(in: &context, size: size)
+            }
+        }
+        .aspectRatio(1, contentMode: .fit)
+        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Shared drawing
+
+private func oval(x: Double, y: Double, width: Double, height: Double) -> Path {
+    Path(ellipseIn: CGRect(x: x, y: y, width: width, height: height))
+}
+
+/// Horizontal place of longitude `u`, in radii. -1...1 is the side that faces us.
+private func place(_ u: Double) -> Double {
+    (u - u.rounded(.down)) * 4 - 2
+}
+
+/// Light at the top, like the sky side of a marble. Draw inside a clip of the globe.
+private func fillGlobe(_ g: inout GraphicsContext, radius r: Double, palette: PlanetPalette) {
+    let square = Path(CGRect(x: -r, y: -r, width: r * 2, height: r * 2))
+    g.fill(
+        square,
+        with: .linearGradient(
+            Gradient(colors: [palette.light, palette.base]),
+            startPoint: CGPoint(x: 0, y: -r),
+            endPoint: CGPoint(x: 0, y: r)
+        )
+    )
+}
+
+/// Soft night side at the bottom right and a highlight at the top left. Draw inside a clip of the globe.
+private func shadeGlobe(_ g: inout GraphicsContext, radius r: Double) {
+    let square = Path(CGRect(x: -r, y: -r, width: r * 2, height: r * 2))
+    let shade = Gradient(stops: [
+        Gradient.Stop(color: Color.black.opacity(0), location: 0),
+        Gradient.Stop(color: Color.black.opacity(0), location: 0.62),
+        Gradient.Stop(color: Color.black.opacity(0.28), location: 1),
+    ])
+    g.fill(
+        square,
+        with: .radialGradient(
+            shade,
+            center: CGPoint(x: -r * 0.4, y: -r * 0.45),
+            startRadius: 0,
+            endRadius: CGFloat(r * 1.8)
+        )
+    )
+    g.fill(
+        oval(x: -r * 0.66, y: -r * 0.74, width: r * 0.56, height: r * 0.30),
+        with: .color(Color.white.opacity(0.30))
+    )
+}
+
+private func fillSpots(_ g: inout GraphicsContext, spots: [PlanetSpot], radius r: Double, turns: Double) {
+    for spot in spots {
+        let x: Double = place(spot.u + turns * spot.rate) * r
+        let shape = oval(x: x - spot.w * r / 2, y: (spot.y - spot.h / 2) * r, width: spot.w * r, height: spot.h * r)
+        g.fill(shape, with: .color(spot.color.opacity(spot.opacity)))
+    }
+}
+
+// MARK: - Planet painter
+
+/// Draws in a 52 × 52 design space, scaled to the target size.
 struct AvatarPainter {
-    static let designSize = CGSize(width: 44, height: 52)
+    static let designSize = CGSize(width: 52, height: 52)
 
     let state: SessionState
-    let color: Color
+    let look: PlanetLook
+    var moons: [MoonLook] = []
     /// Seconds. 0 = still pose.
     let time: Double
-
-    private let ink = Color(red: 0.13, green: 0.12, blue: 0.17)
-
-    private var baseColor: Color {
-        state == .error ? color.mix(with: .gray, by: 0.5) : color
-    }
 
     func paint(in context: inout GraphicsContext, size: CGSize) {
         context.scaleBy(x: size.width / Self.designSize.width, y: size.height / Self.designSize.height)
 
-        drawFeet(&context)
-
-        var upper = context
-        upper.translateBy(x: 0, y: bob)
-        drawAntenna(&upper)
-        drawBody(&upper)
-        drawFace(&upper)
+        // Planet-centered space.
+        var space = context
+        space.translateBy(x: 26, y: 26 + bob)
+        switch state {
+        case .idle:
+            drawSun(&space)
+        case .needsInput:
+            drawHalo(&space)
+        case .running, .error:
+            break
+        }
+        drawMoons(&space, behind: true)
+        drawRings(&space, back: true)
+        drawGlobe(&space)
+        drawRings(&space, back: false)
+        drawMoons(&space, behind: false)
 
         if state == .needsInput {
             drawAlertBadge(&context)
@@ -65,136 +152,207 @@ struct AvatarPainter {
     // MARK: - Motion
 
     private var bob: Double {
-        state == .running && time != 0 ? sin(time * 3.2) * 1.2 : 0
+        state == .running && time != 0 ? sin(time * 1.6) * 0.8 : 0
     }
 
-    /// 1 = open, ~0 = closed. Short blink every 4.2 s.
-    private var eyeOpenness: Double {
-        guard time != 0 else { return 1 }
-        let period = 4.2, duration = 0.16
-        let t = time.truncatingRemainder(dividingBy: period)
-        guard t < duration else { return 1 }
-        return max(0.12, abs(t - duration / 2) / (duration / 2))
+    /// Turns of the planet so far. While it waits for input it only rocks from side to side.
+    private var turns: Double {
+        guard time != 0 else { return 0 }
+        return state == .needsInput ? 0.035 * sin(time * 2.2) : time / look.period
     }
 
     // MARK: - Parts
 
-    private func drawFeet(_ c: inout GraphicsContext) {
-        let foot = baseColor.mix(with: .black, by: 0.28)
-        for x in [12.0, 24.0] {
-            let rect = CGRect(x: x, y: 44, width: 8, height: 7)
-            c.fill(Path(roundedRect: rect, cornerRadius: 3.5), with: .color(foot))
-        }
-    }
-
-    private func drawAntenna(_ c: inout GraphicsContext) {
-        var stem = Path()
-        stem.move(to: CGPoint(x: 22, y: 13))
-        stem.addLine(to: CGPoint(x: 22, y: 6.5))
-        c.stroke(
-            stem,
-            with: .color(baseColor.mix(with: .black, by: 0.28)),
-            style: StrokeStyle(lineWidth: 2, lineCap: .round)
-        )
-
-        let bulb = Path(ellipseIn: CGRect(x: 18.5, y: 2.5, width: 7, height: 7))
-        switch state {
-        case .running:
-            let glow = time == 0 ? 1 : 0.55 + 0.45 * (0.5 + 0.5 * sin(time * 4))
-            c.fill(bulb, with: .color(state.tint.opacity(glow)))
-        case .needsInput, .error:
-            c.fill(bulb, with: .color(state.tint))
-        case .idle:
-            c.fill(bulb, with: .color(baseColor.mix(with: .white, by: 0.45)))
-        }
-    }
-
-    private func drawBody(_ c: inout GraphicsContext) {
-        let rect = CGRect(x: 2, y: 12, width: 40, height: 36)
-        let shape = Path(roundedRect: rect, cornerRadius: 13, style: .continuous)
+    /// Done: the sun shines from behind the planet.
+    private func drawSun(_ c: inout GraphicsContext) {
+        let r = look.radius
+        let sun = Color(red: 1.0, green: 0.80, blue: 0.30)
+        let outer: Double = r + 7
+        let solid: Double = (r + 0.8) / outer
+        let gradient = Gradient(stops: [
+            Gradient.Stop(color: sun.opacity(0.95), location: 0),
+            Gradient.Stop(color: sun.opacity(0.95), location: CGFloat(solid)),
+            Gradient.Stop(color: sun.opacity(0), location: 1),
+        ])
         c.fill(
-            shape,
-            with: .linearGradient(
-                Gradient(colors: [baseColor.mix(with: .white, by: 0.22), baseColor]),
-                startPoint: CGPoint(x: 22, y: rect.minY),
-                endPoint: CGPoint(x: 22, y: rect.maxY)
-            )
+            oval(x: -outer, y: -outer, width: outer * 2, height: outer * 2),
+            with: .radialGradient(gradient, center: .zero, startRadius: 0, endRadius: CGFloat(outer))
         )
-        // Soft highlight, top left.
-        c.fill(Path(ellipseIn: CGRect(x: 8, y: 15, width: 10, height: 5)), with: .color(.white.opacity(0.28)))
-    }
-
-    private func drawFace(_ c: inout GraphicsContext) {
-        let eyes = [CGPoint(x: 15, y: 27), CGPoint(x: 29, y: 27)]
-        let line = StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
-
-        switch state {
-        case .running:
-            let look = time == 0 ? 0 : sin(time * 1.3) * 1.8
-            drawOpenEyes(&c, centers: eyes, size: CGSize(width: 9, height: 10.5), pupil: CGVector(dx: look, dy: 1))
-            var mouth = Path()
-            mouth.move(to: CGPoint(x: 19.5, y: 37))
-            mouth.addLine(to: CGPoint(x: 24.5, y: 37))
-            c.stroke(mouth, with: .color(ink), style: line)
-
-        case .needsInput:
-            drawOpenEyes(&c, centers: eyes, size: CGSize(width: 10.5, height: 12.5), pupil: CGVector(dx: 0, dy: -1.8))
-            c.fill(Path(ellipseIn: CGRect(x: 20, y: 35, width: 4, height: 4.8)), with: .color(ink))
-
-        case .idle:
-            for eye in eyes {
-                var arc = Path()
-                arc.move(to: CGPoint(x: eye.x - 4, y: eye.y + 1.5))
-                arc.addQuadCurve(to: CGPoint(x: eye.x + 4, y: eye.y + 1.5), control: CGPoint(x: eye.x, y: eye.y - 4))
-                c.stroke(arc, with: .color(ink), style: line)
-            }
-            var smile = Path()
-            smile.move(to: CGPoint(x: 18.5, y: 35.5))
-            smile.addQuadCurve(to: CGPoint(x: 25.5, y: 35.5), control: CGPoint(x: 22, y: 39.5))
-            c.stroke(smile, with: .color(ink), style: line)
-            let blush = Color(red: 1, green: 0.45, blue: 0.55).opacity(0.45)
-            c.fill(Path(ellipseIn: CGRect(x: 6, y: 31.5, width: 6, height: 3.5)), with: .color(blush))
-            c.fill(Path(ellipseIn: CGRect(x: 32, y: 31.5, width: 6, height: 3.5)), with: .color(blush))
-
-        case .error:
-            let cross = StrokeStyle(lineWidth: 2.2, lineCap: .round)
-            for eye in eyes {
-                var x = Path()
-                x.move(to: CGPoint(x: eye.x - 3.2, y: eye.y - 3.2))
-                x.addLine(to: CGPoint(x: eye.x + 3.2, y: eye.y + 3.2))
-                x.move(to: CGPoint(x: eye.x + 3.2, y: eye.y - 3.2))
-                x.addLine(to: CGPoint(x: eye.x - 3.2, y: eye.y + 3.2))
-                c.stroke(x, with: .color(ink), style: cross)
-            }
-            var frown = Path()
-            frown.move(to: CGPoint(x: 18.5, y: 38.5))
-            frown.addQuadCurve(to: CGPoint(x: 25.5, y: 38.5), control: CGPoint(x: 22, y: 34.5))
-            c.stroke(frown, with: .color(ink), style: line)
+        // Rays, long and short in turn.
+        let inner: Double = r + 0.5
+        let half: Double = 0.085
+        for index in 0..<12 {
+            let angle: Double = Double(index) * Double.pi / 6 + 0.26
+            let tip: Double = r + (index % 2 == 0 ? 6.5 : 4.2)
+            var ray = Path()
+            ray.move(to: CGPoint(x: cos(angle - half) * inner, y: sin(angle - half) * inner))
+            ray.addLine(to: CGPoint(x: cos(angle) * tip, y: sin(angle) * tip))
+            ray.addLine(to: CGPoint(x: cos(angle + half) * inner, y: sin(angle + half) * inner))
+            ray.closeSubpath()
+            c.fill(ray, with: .color(sun.opacity(0.9)))
         }
     }
 
-    private func drawOpenEyes(_ c: inout GraphicsContext, centers: [CGPoint], size: CGSize, pupil: CGVector) {
-        let openness = eyeOpenness
-        for center in centers {
-            let height = size.height * openness
-            let eye = CGRect(x: center.x - size.width / 2, y: center.y - height / 2, width: size.width, height: height)
-            c.fill(Path(ellipseIn: eye), with: .color(.white))
-            guard openness > 0.5 else { continue }
-            let radius = 2.6
-            let dot = CGRect(
-                x: center.x + pupil.dx - radius,
-                y: center.y + pupil.dy - radius,
-                width: radius * 2,
-                height: radius * 2
+    /// Needs input: thin pulsing glow in the state color, right around the planet.
+    private func drawHalo(_ c: inout GraphicsContext) {
+        let r = look.radius
+        let pulse: Double = time == 0 ? 1 : 0.5 + 0.5 * sin(time * 5)
+        let strength: Double = 0.55 + 0.45 * pulse
+        let outer: Double = r + 4
+        let solid: Double = (r + 0.6) / outer
+        let tint = state.tint
+        let gradient = Gradient(stops: [
+            Gradient.Stop(color: tint.opacity(strength), location: 0),
+            Gradient.Stop(color: tint.opacity(strength), location: CGFloat(solid)),
+            Gradient.Stop(color: tint.opacity(0), location: 1),
+        ])
+        c.fill(
+            oval(x: -outer, y: -outer, width: outer * 2, height: outer * 2),
+            with: .radialGradient(gradient, center: .zero, startRadius: 0, endRadius: CGFloat(outer))
+        )
+    }
+
+    private func drawGlobe(_ c: inout GraphicsContext) {
+        let r = look.radius
+        let spin = turns
+
+        var g = c
+        g.clip(to: oval(x: -r, y: -r, width: r * 2, height: r * 2))
+        fillGlobe(&g, radius: r, palette: look.palette)
+
+        for band in look.bands {
+            let rect = CGRect(x: -r, y: (band.y - band.h / 2) * r, width: r * 2, height: band.h * r)
+            g.fill(Path(rect), with: .color(band.color.opacity(band.opacity)))
+        }
+
+        fillSpots(&g, spots: look.spots, radius: r, turns: spin)
+
+        let steps = 24
+        for squiggle in look.squiggles {
+            let start: Double = place(squiggle.u + spin * squiggle.rate) * r
+            var line = Path()
+            for step in 0...steps {
+                let t: Double = (Double(step) / Double(steps) - 0.5) * squiggle.length
+                let x: Double = start + t * r
+                let y: Double = (squiggle.y + squiggle.amp * sin(t / squiggle.wave * Double.pi * 2)) * r
+                if step == 0 {
+                    line.move(to: CGPoint(x: x, y: y))
+                } else {
+                    line.addLine(to: CGPoint(x: x, y: y))
+                }
+            }
+            g.stroke(
+                line,
+                with: .color(squiggle.color.opacity(squiggle.opacity)),
+                style: StrokeStyle(lineWidth: CGFloat(squiggle.width * r), lineCap: .round, lineJoin: .round)
             )
-            c.fill(Path(ellipseIn: dot), with: .color(ink))
+        }
+
+        for crack in look.cracks {
+            let start: Double = place(crack.u + spin) * r
+            var line = Path()
+            for (index, point) in crack.points.enumerated() {
+                let corner = CGPoint(x: start + Double(point.x) * r, y: (crack.y + Double(point.y)) * r)
+                if index == 0 {
+                    line.move(to: corner)
+                } else {
+                    line.addLine(to: corner)
+                }
+            }
+            if let glow = crack.glow {
+                // Lava: a wide glow under a bright core, both pulse.
+                let pulse: Double = time == 0 ? 0.7 : 0.5 + 0.5 * sin(time * 2.4 + crack.phase)
+                let glowWidth: Double = crack.width * r * 3
+                let coreWidth: Double = crack.width * r * (0.9 + 0.3 * pulse)
+                g.stroke(
+                    line,
+                    with: .color(glow.opacity(0.30 + 0.30 * pulse)),
+                    style: StrokeStyle(lineWidth: CGFloat(glowWidth), lineCap: .round, lineJoin: .round)
+                )
+                g.stroke(
+                    line,
+                    with: .color(crack.color.opacity(0.70 + 0.30 * pulse)),
+                    style: StrokeStyle(lineWidth: CGFloat(coreWidth), lineCap: .round, lineJoin: .round)
+                )
+            } else {
+                g.stroke(
+                    line,
+                    with: .color(crack.color.opacity(crack.opacity)),
+                    style: StrokeStyle(lineWidth: CGFloat(crack.width * r), lineCap: .round, lineJoin: .round)
+                )
+            }
+        }
+
+        for cap in look.caps {
+            let shape = oval(x: -cap.w * r / 2, y: (cap.y - cap.h / 2) * r, width: cap.w * r, height: cap.h * r)
+            g.fill(shape, with: .color(cap.color))
+        }
+
+        shadeGlobe(&g, radius: r)
+
+        if state == .error {
+            // Eclipse: a round shadow over the right half.
+            let shadowRadius: Double = r * 1.35
+            let centerX: Double = r * 1.05
+            let centerY: Double = r * 0.2
+            g.fill(
+                oval(
+                    x: centerX - shadowRadius, y: centerY - shadowRadius,
+                    width: shadowRadius * 2, height: shadowRadius * 2
+                ),
+                with: .color(Color(red: 0.05, green: 0.05, blue: 0.12).opacity(0.72))
+            )
+        }
+    }
+
+    /// `back`: the half behind the planet (drawn first). Otherwise the half in front.
+    private func drawRings(_ c: inout GraphicsContext, back: Bool) {
+        guard let rings = look.rings else { return }
+        let r = look.radius
+        var g = c
+        g.rotate(by: .degrees(rings.tilt))
+        g.clip(to: Path(CGRect(x: -40, y: back ? -40 : 0, width: 80, height: 40)))
+        for part in rings.parts {
+            let rx: Double = part.rx * r
+            let ry: Double = rx * rings.squash
+            let color = back ? part.color.mix(with: .black, by: 0.18) : part.color
+            g.stroke(
+                oval(x: -rx, y: -ry, width: rx * 2, height: ry * 2),
+                with: .color(color),
+                lineWidth: CGFloat(part.width * r)
+            )
+        }
+    }
+
+    /// One moon per running subagent. `behind`: the moons on the far side of the orbit (drawn first).
+    private func drawMoons(_ c: inout GraphicsContext, behind: Bool) {
+        guard !moons.isEmpty else { return }
+        var g = c
+        g.rotate(by: .degrees(look.rings?.tilt ?? -12))
+        for (index, moon) in moons.enumerated() {
+            let i = Double(index)
+            let angle: Double = time * (1.15 - 0.17 * i) + i * 2.4 + 0.3
+            let isBehind = sin(angle) < 0
+            guard isBehind == behind else { continue }
+            let rx: Double = 23 * (1 - 0.07 * Double(index % 3))
+            let ry: Double = rx * 0.30
+            let x: Double = cos(angle) * rx
+            let y: Double = sin(angle) * ry
+            let mr: Double = 2.6 * (isBehind ? 0.85 : 1)
+            let body = oval(x: x - mr, y: y - mr, width: mr * 2, height: mr * 2)
+            g.fill(body, with: .color(moon.palette.base))
+            g.fill(
+                oval(x: x - mr * 0.75, y: y - mr * 0.8, width: mr * 1.0, height: mr * 0.9),
+                with: .color(moon.palette.light.opacity(0.9))
+            )
+            g.stroke(body, with: .color(Color.black.opacity(0.25)), lineWidth: 0.4)
         }
     }
 
     private func drawAlertBadge(_ c: inout GraphicsContext) {
         let pulse = time == 0 ? 1 : 1 + 0.08 * sin(time * 5)
         let radius = 6.5 * pulse
-        let center = CGPoint(x: 37, y: 9)
+        let center = CGPoint(x: 44.5, y: 8)
         let circle = Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
         c.fill(circle, with: .color(state.tint))
         c.stroke(circle, with: .color(.white.opacity(0.9)), lineWidth: 1.2)
@@ -205,13 +363,42 @@ struct AvatarPainter {
     }
 }
 
-#Preview("Avatar states") {
-    HStack(spacing: 16) {
-        ForEach(SessionState.allCases, id: \.self) { state in
-            VStack {
-                AvatarView(state: state, color: ProjectPalette.colors[0])
-                    .frame(width: 44, height: 52)
-                Text(state.label).font(.caption)
+// MARK: - Moon painter
+
+/// Draws in a 22 × 22 design space, scaled to the target size.
+struct MoonPainter {
+    let look: MoonLook
+    /// Seconds. 0 = still pose.
+    let time: Double
+
+    func paint(in context: inout GraphicsContext, size: CGSize) {
+        context.scaleBy(x: size.width / 22, y: size.height / 22)
+        let r: Double = 9
+        var g = context
+        g.translateBy(x: 11, y: 11)
+        g.clip(to: oval(x: -r, y: -r, width: r * 2, height: r * 2))
+        fillGlobe(&g, radius: r, palette: look.palette)
+        fillSpots(&g, spots: look.craters, radius: r, turns: time == 0 ? 0 : time / 8)
+        shadeGlobe(&g, radius: r)
+    }
+}
+
+#Preview("Planets") {
+    let names = ["lounge-app", "android-shop", "vault", "billing-api", "design-tokens", "website"]
+    return VStack(spacing: 12) {
+        ForEach(names, id: \.self) { name in
+            HStack(spacing: 16) {
+                ForEach(SessionState.allCases, id: \.self) { state in
+                    AvatarView(
+                        state: state,
+                        look: PlanetLook.make(seed: name),
+                        moons: state == .running ? ["Explore", "Plan"] : []
+                    )
+                        .frame(width: 52, height: 52)
+                }
+                MoonAvatarView(name: name)
+                    .frame(width: 22, height: 22)
+                Text(name).font(.caption)
             }
         }
     }

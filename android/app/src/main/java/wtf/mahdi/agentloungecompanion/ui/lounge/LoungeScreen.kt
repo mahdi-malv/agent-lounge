@@ -56,6 +56,8 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -76,6 +78,8 @@ import wtf.mahdi.agentloungecompanion.R
 import wtf.mahdi.agentloungecompanion.protocol.SessionState
 import wtf.mahdi.agentloungecompanion.protocol.TaskStatus
 import wtf.mahdi.agentloungecompanion.ui.components.Avatar
+import wtf.mahdi.agentloungecompanion.ui.components.MoonAvatar
+import wtf.mahdi.agentloungecompanion.ui.components.PlanetLook
 import wtf.mahdi.agentloungecompanion.ui.components.NoticeCard
 import wtf.mahdi.agentloungecompanion.ui.components.stateLabel
 import wtf.mahdi.agentloungecompanion.ui.theme.AgentLoungeCompanionTheme
@@ -310,7 +314,8 @@ private fun EmptyLounge(state: LoungeUiState) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxWidth().padding(top = 64.dp, start = 24.dp, end = 24.dp),
     ) {
-        Avatar(state = SessionState.IDLE, color = LoungeColors.project(0), modifier = Modifier.size(64.dp, 76.dp))
+        val look = remember { PlanetLook.make("Agent Lounge") }
+        Avatar(state = SessionState.IDLE, look = look, modifier = Modifier.size(64.dp))
         Text(
             if (state.status == LinkStatus.CONNECTED) stringResource(R.string.empty_title) else stringResource(R.string.empty_offline),
             style = MaterialTheme.typography.titleMedium,
@@ -355,7 +360,9 @@ private fun AgentCard(
     ) {
         Column(Modifier.padding(12.dp).animateContentSize()) {
             Row(verticalAlignment = Alignment.Top) {
-                Avatar(state = card.state, color = LoungeColors.project(card.colorIndex), phaseSeconds = card.phaseSeconds)
+                val look = remember(card.planetSeed, card.planetIdentity) { PlanetLook.make(card.planetSeed, card.planetIdentity) }
+                val moons = remember(card.subagents) { card.subagents.map { it.name } }
+                Avatar(state = card.avatarState, look = look, moons = moons, phaseSeconds = card.phaseSeconds)
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -388,10 +395,52 @@ private fun AgentCard(
                     }
                 }
             }
+            if (card.subagents.isNotEmpty()) {
+                SubagentList(card.subagents, animated = card.avatarState == SessionState.RUNNING, phaseSeconds = card.phaseSeconds)
+            }
             card.approval?.let { approval -> ApprovalBox(approval, enabled = !stale, onDecide = onDecide) }
             if (expanded) {
                 card.prompt?.let { prompt -> PromptField(prompt, enabled = !stale, onDraftChange, onSendPrompt) }
                 CardDetails(card)
+            }
+        }
+    }
+}
+
+/** One row per running subagent, under the card. A line on the left starts under the planet's center. */
+@Composable
+private fun SubagentList(subagents: List<CardUi.SubagentUi>, animated: Boolean, phaseSeconds: Float) {
+    val lineColor = MaterialTheme.colorScheme.outlineVariant
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp, start = 25.dp)
+            .drawBehind {
+                drawLine(lineColor, Offset(0f, 0f), Offset(0f, size.height), strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
+            }
+            .padding(start = 14.dp),
+    ) {
+        subagents.forEachIndexed { index, subagent ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                MoonAvatar(subagent.name, animated = animated, phaseSeconds = phaseSeconds + index)
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        subagent.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        subagent.activity ?: stringResource(R.string.subagent_working),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }
@@ -621,7 +670,7 @@ private fun TaskRow(task: CardUi.TaskUi) {
 private val previewCards = listOf(
     CardUi(
         id = "a", title = "claude-huddle · Phone app", subtitle = "Allow Bash: ./gradlew test?", host = "Ghostty",
-        state = SessionState.NEEDS_INPUT, colorIndex = 0, phaseSeconds = 0f,
+        state = SessionState.NEEDS_INPUT, planetSeed = "claude-huddle", planetIdentity = null, phaseSeconds = 0f,
         progress = CardUi.ProgressUi(2, 5, "Writing tests"), elapsed = "42m", lastEventAgo = "5s",
         modelLine = "opus · high", gitBranch = "main", cwd = "/Users/me/code/claude-huddle", subagentCount = 0,
         context = CardUi.ContextUi("101k / 1M", 0.1f), lastMessage = null,
@@ -631,13 +680,17 @@ private val previewCards = listOf(
     ),
     CardUi(
         id = "b", title = "api · Fix login", subtitle = "Editing AuthService.kt", host = "Codex · Zed",
-        state = SessionState.RUNNING, colorIndex = 3, phaseSeconds = 1f, progress = null, elapsed = "8m",
+        state = SessionState.RUNNING, planetSeed = "api", planetIdentity = 16, phaseSeconds = 1f, progress = null, elapsed = "8m",
         lastEventAgo = "1s", modelLine = null, gitBranch = null, cwd = "/Users/me/code/api", subagentCount = 2,
         context = null, lastMessage = null, tasks = emptyList(),
+        subagents = listOf(
+            CardUi.SubagentUi("s1", "Explore", "Reading AuthService.kt"),
+            CardUi.SubagentUi("s2", "code-reviewer", null),
+        ),
     ),
     CardUi(
         id = "c", title = "site", subtitle = "Deployed the preview. All checks pass.", host = "Claude.app",
-        state = SessionState.IDLE, colorIndex = 1, phaseSeconds = 2f, progress = null, elapsed = "2h 10m",
+        state = SessionState.IDLE, planetSeed = "site", planetIdentity = null, phaseSeconds = 2f, progress = null, elapsed = "2h 10m",
         lastEventAgo = "4m", modelLine = "sonnet", gitBranch = "feature/x", cwd = "/Users/me/code/site", subagentCount = 0,
         context = null, lastMessage = "Deployed the preview. All checks pass.", tasks = emptyList(),
     ),

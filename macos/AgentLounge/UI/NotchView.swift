@@ -21,6 +21,7 @@ struct NotchView: View {
     var body: some View {
         let geometry = model.geometry
         let expanded = model.isExpanded
+        let _ = PlanetRegistry.sync(store.sessions)
         let rows = expanded ? NotchLayout.rows(store.visibleSessions) : []
         let size = expanded
             ? NotchLayout.expandedSize(geometry, rows: rows.count)
@@ -109,8 +110,9 @@ private struct NotchRow: View {
         Button(action: onFocus) {
             HStack(spacing: 10) {
                 AvatarView(
-                    state: session.state,
-                    color: ProjectPalette.color(for: session.projectName),
+                    state: session.avatarState,
+                    look: PlanetRegistry.look(for: session),
+                    moons: session.subagents.map(\.name),
                     phase: ProjectPalette.phase(for: session.id)
                 )
                 .frame(height: 26)
@@ -144,7 +146,7 @@ private struct NotchRow: View {
 }
 
 /// Notch outline: concave flares at the top corners, rounded bottom corners.
-struct NotchShape: Shape {
+nonisolated struct NotchShape: Shape {
     var topRadius: CGFloat
     var bottomRadius: CGFloat
 

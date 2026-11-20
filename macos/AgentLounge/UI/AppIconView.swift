@@ -24,13 +24,13 @@ struct AppIconView: View {
                 .frame(width: 620, height: 70)
                 .offset(y: 250)
 
-            StillAvatar(state: .running, color: ProjectPalette.colors[0])
+            StillAvatar(state: .running, seed: "lounge-app")
                 .frame(height: 300)
                 .offset(x: -215, y: 110)
-            StillAvatar(state: .needsInput, color: ProjectPalette.colors[1])
+            StillAvatar(state: .needsInput, seed: "android-shop")
                 .frame(height: 300)
                 .offset(x: 215, y: 110)
-            StillAvatar(state: .idle, color: ProjectPalette.colors[4])
+            StillAvatar(state: .idle, seed: "vault")
                 .frame(height: 470)
                 .offset(y: 20)
         }
@@ -41,11 +41,11 @@ struct AppIconView: View {
 /// Mascot in its still pose (no TimelineView, so `ImageRenderer` draws it at once).
 private struct StillAvatar: View {
     let state: SessionState
-    let color: Color
+    let seed: String
 
     var body: some View {
         Canvas { context, size in
-            AvatarPainter(state: state, color: color, time: 0).paint(in: &context, size: size)
+            AvatarPainter(state: state, look: PlanetLook.make(seed: seed), time: 0).paint(in: &context, size: size)
         }
         .aspectRatio(AvatarPainter.designSize.width / AvatarPainter.designSize.height, contentMode: .fit)
     }

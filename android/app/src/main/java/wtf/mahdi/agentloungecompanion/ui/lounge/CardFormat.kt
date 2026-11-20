@@ -12,8 +12,9 @@ data class CardUi(
     val subtitle: String,
     val host: String,
     val state: SessionState,
-    /** Index into the project palette (same color as on the Mac). */
-    val colorIndex: Int,
+    /** The card's planet: `PlanetLook.make(planetSeed, planetIdentity)`, the same one the Mac shows. */
+    val planetSeed: String,
+    val planetIdentity: Int?,
     /** Animation offset in seconds, so avatars do not move in sync. */
     val phaseSeconds: Float,
     val progress: ProgressUi?,
@@ -29,7 +30,15 @@ data class CardUi(
     /** Open permission request (Claude). */
     val approval: ApprovalUi? = null,
     val prompt: PromptUi? = null,
+    /** Running subagents, oldest first: one row each under the card, one moon each around the planet. */
+    val subagents: List<SubagentUi> = emptyList(),
 ) {
+    /** A card whose main agent is done still works while its background subagents run. */
+    val avatarState: SessionState
+        get() = if (state == SessionState.IDLE && subagents.isNotEmpty()) SessionState.RUNNING else state
+
+    data class SubagentUi(val id: String, val name: String, val activity: String?)
+
     /** Prompt field, for Ghostty sessions. */
     data class PromptUi(val draft: String, val isSending: Boolean) {
         val canSend: Boolean get() = draft.isNotBlank() && !isSending
@@ -47,8 +56,6 @@ data class CardUi(
 }
 
 object CardFormat {
-    const val PALETTE_SIZE = 9
-
     fun toUi(
         card: RemoteCard,
         nowMillis: Long,
@@ -64,7 +71,10 @@ object CardFormat {
             subtitle = card.subtitle,
             host = card.host,
             state = card.state,
-            colorIndex = (fnv1a(card.project) % PALETTE_SIZE.toULong()).toInt(),
+            // An older Mac sends no planet: pick one from the project, like the Mac does for its first session.
+            planetSeed = card.planetSeed ?: card.project.ifEmpty { card.title },
+            planetIdentity = card.planetIdentity,
+            subagents = card.subagents.map { CardUi.SubagentUi(it.id, it.name.ifEmpty { "Subagent" }, it.activity?.takeIf(String::isNotBlank)) },
             phaseSeconds = (fnv1a(card.id) % 1000uL).toFloat() / 97f,
             progress = card.progress?.let { CardUi.ProgressUi(it.done, it.total, it.label) },
             elapsed = if (started > 0) duration(nowMillis - started) else "",

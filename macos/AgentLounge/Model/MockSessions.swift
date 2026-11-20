@@ -27,6 +27,10 @@ enum MockSessions {
                 effort: "high",
                 permissionMode: "acceptEdits",
                 subagentCount: 2,
+                subagents: [
+                    Subagent(id: "mock-explore", name: "Explore", activity: "Reading PanelView.swift", startedAt: now - 70),
+                    Subagent(id: "mock-tests", name: "test-runner", activity: "Running make test", startedAt: now - 20),
+                ],
                 context: ContextUsage(usedTokens: 84_000, limitTokens: 200_000),
                 lastAssistantMessage: "The panel now opens under the status item. Next I will connect the pin button."
             ),
@@ -102,6 +106,9 @@ enum MockSessions {
                 effort: "low",
                 permissionMode: "default",
                 subagentCount: 1,
+                subagents: [
+                    Subagent(id: "mock-review", name: "code-reviewer", activity: "Searching for \"tokens\"", startedAt: now - 30),
+                ],
                 context: ContextUsage(usedTokens: 12_000, limitTokens: 200_000)
             ),
         ]

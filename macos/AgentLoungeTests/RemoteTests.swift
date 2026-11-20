@@ -179,7 +179,11 @@ struct RemoteCardTests {
             AgentTask(id: "1", subject: "Write", activeForm: "Writing", status: .completed),
             AgentTask(id: "2", subject: "Test", activeForm: "Testing", status: .inProgress),
         ]
-        let card = RemoteCard(session)
+        session.subagents = [Subagent(id: "a1", name: "Explore", activity: "Reading Foo.swift", startedAt: Date(timeIntervalSince1970: 150))]
+        let card = RemoteCard(session, planet: (seed: "app", identity: 17))
+        #expect(card.subagents == [RemoteCard.SubagentItem(id: "a1", name: "Explore", activity: "Reading Foo.swift")])
+        #expect(card.planetSeed == "app")
+        #expect(card.planetIdentity == 17)
         #expect(card.title == "app")
         #expect(card.subtitle == "Editing Foo.swift")
         #expect(card.host == "Ghostty")

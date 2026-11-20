@@ -116,6 +116,13 @@ nonisolated struct RemoteCard: Codable, Equatable, Sendable {
         var status: AgentTask.Status
     }
 
+    /// A running subagent: a row under the card and a moon around its planet.
+    struct SubagentItem: Codable, Equatable, Sendable {
+        var id: String
+        var name: String
+        var activity: String?
+    }
+
     struct Context: Codable, Equatable, Sendable {
         var usedTokens: Int
         var limitTokens: Int
@@ -140,6 +147,10 @@ nonisolated struct RemoteCard: Codable, Equatable, Sendable {
     var startedAt: Date
     var lastEventAt: Date
     var subagentCount: Int
+    var subagents: [SubagentItem]
+    /// The planet the Mac shows for this card (`PlanetLook.make(seed:identity:)`), so the phone draws the same one.
+    var planetSeed: String?
+    var planetIdentity: Int?
     var context: Context?
     var lastMessage: String?
     /// Open permission request that the phone may answer.
@@ -174,7 +185,7 @@ extension RemoteApproval {
 }
 
 extension RemoteCard {
-    init(_ session: AgentSession, approval: PendingApproval? = nil) {
+    init(_ session: AgentSession, approval: PendingApproval? = nil, planet: (seed: String, identity: Int)? = nil) {
         self.approval = approval.map(RemoteApproval.init)
         canPrompt = PromptPlan.canPrompt(session)
         id = session.id
@@ -196,6 +207,9 @@ extension RemoteCard {
         startedAt = session.startedAt
         lastEventAt = session.lastEventAt
         subagentCount = session.subagentCount
+        subagents = session.subagents.map { SubagentItem(id: $0.id, name: $0.name, activity: $0.activity) }
+        planetSeed = planet?.seed
+        planetIdentity = planet?.identity
         context = session.context.map { Context(usedTokens: $0.usedTokens, limitTokens: $0.limitTokens) }
         lastMessage = session.lastAssistantMessage.map { text in
             text.count > RemoteProtocol.maxMessageLength

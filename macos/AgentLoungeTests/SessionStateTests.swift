@@ -90,6 +90,75 @@ struct SessionReducerTests {
         #expect(session.subagentCount == 0)
     }
 
+    @Test func subagentRowsFollowStartAndStop() {
+        var session = run([
+            TestEvents.event("UserPromptSubmit"),
+            TestEvents.event("SubagentStart", extra: ["agent_id": "a1", "agent_type": "Explore"]),
+            TestEvents.event("SubagentStart", extra: ["agent_id": "a2"]),
+        ])
+        #expect(session.subagents.map(\.id) == ["a1", "a2"])
+        #expect(session.subagents.map(\.name) == ["Explore", "Subagent"])
+
+        SessionReducer.apply(TestEvents.event("PreToolUse", extra: TestEvents.bash("ls").merging(["agent_id": "a1"]) { _, new in new }), to: &session)
+        #expect(session.subagents[0].activity != nil)
+        #expect(session.subagents[1].activity == nil)
+
+        SessionReducer.apply(TestEvents.event("SubagentStop", extra: ["agent_id": "a1"]), to: &session)
+        #expect(session.subagents.map(\.id) == ["a2"])
+    }
+
+    @Test func duplicateSubagentStartAddsOneRow() {
+        let session = run([
+            TestEvents.event("SubagentStart", extra: ["agent_id": "a1"]),
+            TestEvents.event("SubagentStart", extra: ["agent_id": "a1"]),
+        ])
+        #expect(session.subagents.count == 1)
+    }
+
+    @Test func anonymousSubagentIdsDoNotCollide() {
+        // [a1, anon] → a1 stops → [anon] → a new anonymous start must still add a row.
+        var session = run([
+            TestEvents.event("SubagentStart", extra: ["agent_id": "a1"]),
+            TestEvents.event("SubagentStart"),
+            TestEvents.event("SubagentStop", extra: ["agent_id": "a1"]),
+        ])
+        SessionReducer.apply(TestEvents.event("SubagentStart"), to: &session)
+        #expect(session.subagents.count == 2)
+    }
+
+    @Test func backgroundSubagentKeepsPlanetTurningAfterStop() {
+        var session = run([
+            TestEvents.event("UserPromptSubmit"),
+            TestEvents.event("SubagentStart", extra: ["agent_id": "bg"]),
+            TestEvents.event("SubagentStart"),
+            TestEvents.event("Stop"),
+        ])
+        // The anonymous one cannot be matched to a stop event, so it goes with the main turn.
+        #expect(session.subagents.map(\.id) == ["bg"])
+        #expect(session.state == .idle)
+        #expect(session.avatarState == .running)
+
+        // Tool calls of the background agent do not make the main agent look busy.
+        SessionReducer.apply(TestEvents.event("PreToolUse", extra: TestEvents.bash("ls").merging(["agent_id": "bg"]) { _, new in new }), to: &session)
+        #expect(session.state == .idle)
+
+        SessionReducer.apply(TestEvents.event("SubagentStop", extra: ["agent_id": "bg"]), to: &session)
+        #expect(session.subagents.isEmpty)
+        #expect(session.avatarState == .idle)
+    }
+
+    @Test func newPromptMakesSubagentToolsCountAsRunningAgain() {
+        var session = run([
+            TestEvents.event("UserPromptSubmit"),
+            TestEvents.event("SubagentStart", extra: ["agent_id": "bg"]),
+            TestEvents.event("Stop"),
+            TestEvents.event("UserPromptSubmit"),
+            TestEvents.event("PostToolUse", extra: TestEvents.bash("ls")),
+        ])
+        SessionReducer.apply(TestEvents.event("PreToolUse", extra: TestEvents.bash("ls").merging(["agent_id": "bg"]) { _, new in new }), to: &session)
+        #expect(session.state == .running)
+    }
+
     @Test func lastEventTimeNeverGoesBack() {
         let session = run([TestEvents.event("UserPromptSubmit", sentAt: 2_000), TestEvents.event("PreToolUse", sentAt: 1_500, extra: TestEvents.bash("ls"))])
         #expect(session.lastEventAt == Date(timeIntervalSince1970: 2_000))

@@ -74,6 +74,17 @@ nonisolated struct AgentTask: Identifiable, Codable, Hashable, Sendable {
     var status: Status
 }
 
+/// A running subagent of a session: a row under the parent card and a moon around its planet.
+nonisolated struct Subagent: Identifiable, Codable, Hashable, Sendable {
+    /// The agent's `agent_id`.
+    let id: String
+    /// The agent's `agent_type`, e.g. "Explore".
+    var name: String
+    /// Current activity from its last tool, e.g. "Reading Foo.swift".
+    var activity: String? = nil
+    var startedAt: Date
+}
+
 nonisolated struct ContextUsage: Codable, Hashable, Sendable {
     var usedTokens: Int
     var limitTokens: Int
@@ -118,6 +129,11 @@ nonisolated struct AgentSession: Identifiable, Codable, Hashable, Sendable {
     var effort: String? = nil
     var permissionMode: String? = nil
     var subagentCount: Int = 0
+    /// Running subagents, oldest first.
+    var subagents: [Subagent] = []
+    /// The main agent ended its turn (Stop) and has not started a new one. Background subagents
+    /// can still work then; their events must not show the main agent as running.
+    var mainTurnEnded: Bool = false
     var context: ContextUsage? = nil
     var lastAssistantMessage: String? = nil
 
@@ -155,6 +171,12 @@ nonisolated struct AgentSession: Identifiable, Codable, Hashable, Sendable {
         if let title, !title.isEmpty { return title }
         if let name = customTitle ?? aiTitle, !name.isEmpty { return "\(projectName) · \(name)" }
         return projectName
+    }
+
+    /// State the avatar shows. A card whose main agent is done still has work going on while its
+    /// background subagents run, so its planet keeps turning.
+    var avatarState: SessionState {
+        state == .idle && !subagents.isEmpty ? .running : state
     }
 
     /// Recompute `tasks` from the two task books. Keeps `tasks` when both are empty (mocks).

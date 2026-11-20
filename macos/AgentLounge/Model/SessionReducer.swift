@@ -30,6 +30,11 @@ nonisolated enum SessionReducer {
         if let pid = event.host.agentPID(for: event.agent) { session.pid = pid }
         if session.cwd.isEmpty, let cwd = event.cwd { session.cwd = cwd }
 
+        // State of a card with no question open. Events from a background subagent that still works
+        // after the main agent's turn ended leave the card idle.
+        let fromSubagent = event.agentId != nil
+        let working: SessionState = fromSubagent && session.mainTurnEnded ? .idle : .running
+
         switch event.kind {
         case .sessionStart(let source):
             if let cwd = event.cwd, !cwd.isEmpty { session.cwd = cwd }
@@ -41,26 +46,34 @@ nonisolated enum SessionReducer {
             }
 
         case .userPromptSubmit:
+            session.mainTurnEnded = false
             session.state = .running
             session.activity = nil
             session.attention = nil
             session.consecutiveToolFailures = 0
 
         case .preToolUse(let tool):
-            session.activity = ToolActivity.describe(tool)
+            let activity = ToolActivity.describe(tool)
+            session.activity = activity
+            // A tool call from inside a subagent also shows on that subagent's row.
+            if let agentId = event.agentId,
+               let index = session.subagents.firstIndex(where: { $0.id == agentId }) {
+                session.subagents[index].activity = activity
+            }
+            if !fromSubagent { session.mainTurnEnded = false }
             if let waiting = ToolActivity.waitingText(tool) {
                 // AskUserQuestion / ExitPlanMode block until the user answers.
                 session.state = .needsInput
                 session.attention = waiting
             } else {
-                session.state = .running
+                session.state = working
                 session.attention = nil
             }
 
         case .postToolUse(let tool):
             session.consecutiveToolFailures = 0
             if session.state == .needsInput || session.state == .error {
-                session.state = .running
+                session.state = working
                 session.attention = nil
             }
             if session.hookTasks.apply(toolName: tool.name, input: tool.input, response: event.payload["tool_response"]) {
@@ -74,7 +87,7 @@ nonisolated enum SessionReducer {
                 let reason = error?.firstLine.map { ": \($0)" } ?? ""
                 session.attention = "\(tool.name) failed \(session.consecutiveToolFailures) times\(reason)"
             } else if session.state == .needsInput {
-                session.state = .running
+                session.state = working
                 session.attention = nil
             }
 
@@ -97,9 +110,21 @@ nonisolated enum SessionReducer {
 
         case .subagentStart:
             session.subagentCount += 1
+            // A count-based id can collide with a still-listed anonymous agent, so use a fresh UUID.
+            let id = event.agentId ?? "anonymous-\(UUID().uuidString)"
+            if !session.subagents.contains(where: { $0.id == id }) {
+                let type = event.payload["agent_type"]?.stringValue ?? ""
+                let name = type.isEmpty ? "Subagent" : type
+                session.subagents.append(Subagent(id: id, name: name, startedAt: event.timestamp))
+            }
 
         case .subagentStop:
             session.subagentCount = max(0, session.subagentCount - 1)
+            if let agentId = event.agentId {
+                session.subagents.removeAll { $0.id == agentId }
+            } else if !session.subagents.isEmpty {
+                session.subagents.removeLast()
+            }
 
         // Same facts as PostToolUse(TaskCreate/TaskUpdate); applying both is harmless.
         case .taskCreated(let id, let subject):
@@ -118,7 +143,11 @@ nonisolated enum SessionReducer {
             session.state = .idle
             session.activity = nil
             session.attention = nil
-            session.subagentCount = 0
+            session.mainTurnEnded = true
+            // Subagents that still run now are background agents: they stay until their SubagentStop.
+            // One without an id cannot be matched to its stop event, so it goes now.
+            session.subagents.removeAll { $0.id.hasPrefix("anonymous-") }
+            session.subagentCount = session.subagents.count
             if let lastMessage, !lastMessage.isEmpty {
                 session.lastAssistantMessage = lastMessage
             }
@@ -127,9 +156,12 @@ nonisolated enum SessionReducer {
             session.state = .idle
             session.activity = nil
             session.attention = nil
+            session.mainTurnEnded = true
             session.subagentCount = 0
+            session.subagents = []
 
         case .stopFailure(let error):
+            session.mainTurnEnded = true
             session.state = .error
             session.activity = nil
             session.attention = error?.firstLine ?? "The turn failed"
