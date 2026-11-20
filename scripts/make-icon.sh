@@ -1,6 +1,6 @@
 #!/bin/sh
 # Renders the app icon (AppIconView) into macos/AgentLounge/Assets.xcassets/AppIcon.appiconset.
-# Run after a change to the icon artwork or the mascot, then `make build`.
+# Run after a change to the icon artwork or the planet look, then `make build`.
 set -eu
 
 root=$(cd "$(dirname "$0")/.." && pwd)

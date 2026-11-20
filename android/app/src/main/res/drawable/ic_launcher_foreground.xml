@@ -1,24 +1,105 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Lounge critter (same design as the Mac avatar, 44 × 52 design units), centered in the safe zone. -->
+<!-- Ringed planet and moon. Same art as the Mac icon (AppIconView, PlanetLook.appIcon).
+     1 planet design unit = 1 dp, from the icon center. Planet radius 14.5, ring tilt -18 degrees. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <group android:translateX="29.8" android:translateY="25.4" android:scaleX="1.1" android:scaleY="1.1">
-        <!-- Feet -->
-        <path android:fillColor="#FF4667AE" android:pathData="M15.5,44h1a3.5,3.5 0,0 1,3.5 3.5a3.5,3.5 0,0 1,-3.5 3.5h-1a3.5,3.5 0,0 1,-3.5 -3.5a3.5,3.5 0,0 1,3.5 -3.5z" />
-        <path android:fillColor="#FF4667AE" android:pathData="M27.5,44h1a3.5,3.5 0,0 1,3.5 3.5a3.5,3.5 0,0 1,-3.5 3.5h-1a3.5,3.5 0,0 1,-3.5 -3.5a3.5,3.5 0,0 1,3.5 -3.5z" />
-        <!-- Antenna -->
-        <path android:strokeColor="#FF4667AE" android:strokeWidth="2" android:strokeLineCap="round" android:pathData="M22,13L22,6.5" />
-        <path android:fillColor="#FF34C759" android:pathData="M18.5,6a3.5,3.5 0,1 0,7 0a3.5,3.5 0,1 0,-7 0z" />
-        <!-- Body and highlight -->
-        <path android:fillColor="#FF618FF2" android:pathData="M15,12h14a13,13 0,0 1,13 13v10a13,13 0,0 1,-13 13h-14a13,13 0,0 1,-13 -13v-10a13,13 0,0 1,13 -13z" />
-        <path android:fillColor="#47FFFFFF" android:pathData="M8,17.5a5,2.5 0,1 0,10 0a5,2.5 0,1 0,-10 0z" />
-        <!-- Eyes -->
-        <path android:fillColor="#FFFFFFFF" android:pathData="M10.5,27a4.5,5.25 0,1 0,9 0a4.5,5.25 0,1 0,-9 0z M24.5,27a4.5,5.25 0,1 0,9 0a4.5,5.25 0,1 0,-9 0z" />
-        <path android:fillColor="#FF211F2B" android:pathData="M12.4,28a2.6,2.6 0,1 0,5.2 0a2.6,2.6 0,1 0,-5.2 0z M26.4,28a2.6,2.6 0,1 0,5.2 0a2.6,2.6 0,1 0,-5.2 0z" />
-        <!-- Smile -->
-        <path android:strokeColor="#FF211F2B" android:strokeWidth="2" android:strokeLineCap="round" android:pathData="M18.5,35.5Q22,39.5 25.5,35.5" />
+    <group android:translateX="54" android:translateY="54">
+
+        <!-- Moon -->
+        <group android:translateX="-19" android:translateY="-17">
+            <clip-path android:pathData="M-3.2,0a3.2,3.2 0 1,0 6.4,0a3.2,3.2 0 1,0 -6.4,0z" />
+            <path android:pathData="M-3.2,-3.2h6.4v6.4h-6.4z">
+                <aapt:attr name="android:fillColor">
+                    <gradient
+                        android:type="linear"
+                        android:startX="0" android:startY="-3.2"
+                        android:endX="0" android:endY="3.2"
+                        android:startColor="#FFDBEDFF"
+                        android:endColor="#FF9EC2EB" />
+                </aapt:attr>
+            </path>
+            <path
+                android:fillColor="#8C5C7AB3"
+                android:pathData="M0.15,0.5a0.75,0.75 0 1,0 1.5,0a0.75,0.75 0 1,0 -1.5,0z M-1.5,1.2a0.5,0.5 0 1,0 1,0a0.5,0.5 0 1,0 -1,0z" />
+            <path android:pathData="M-3.2,-3.2h6.4v6.4h-6.4z">
+                <aapt:attr name="android:fillColor">
+                    <gradient
+                        android:type="radial"
+                        android:centerX="-1.28" android:centerY="-1.44"
+                        android:gradientRadius="5.76">
+                        <item android:offset="0" android:color="#00000000" />
+                        <item android:offset="0.62" android:color="#00000000" />
+                        <item android:offset="1" android:color="#47000000" />
+                    </gradient>
+                </aapt:attr>
+            </path>
+        </group>
+
+        <!-- Rings, back half (behind the planet) -->
+        <group android:rotation="-18">
+            <clip-path android:pathData="M-40,-40H40V0H-40Z" />
+            <path
+                android:strokeColor="#FF9B8EC0"
+                android:strokeWidth="2.61"
+                android:pathData="M-19.72,0a19.72,5.92 0 1,0 39.44,0a19.72,5.92 0 1,0 -39.44,0" />
+            <path
+                android:strokeColor="#FFC2BAD1"
+                android:strokeWidth="2.32"
+                android:pathData="M-23.49,0a23.49,7.05 0 1,0 46.98,0a23.49,7.05 0 1,0 -46.98,0" />
+        </group>
+
+        <!-- Planet -->
+        <group>
+            <clip-path android:pathData="M-14.5,0a14.5,14.5 0 1,0 29,0a14.5,14.5 0 1,0 -29,0z" />
+            <path android:pathData="M-14.5,-14.5h29v29h-29z">
+                <aapt:attr name="android:fillColor">
+                    <gradient
+                        android:type="linear"
+                        android:startX="0" android:startY="-14.5"
+                        android:endX="0" android:endY="14.5"
+                        android:startColor="#FFFFE6C7"
+                        android:endColor="#FFF2B385" />
+                </aapt:attr>
+            </path>
+            <!-- Cloud belts -->
+            <path android:fillColor="#B3FFF5E0" android:pathData="M-14.5,-9.28h29v2.61h-29z" />
+            <path android:fillColor="#8CB86B4D" android:pathData="M-14.5,-3.48h29v3.48h-29z" />
+            <path android:fillColor="#99FFF5E0" android:pathData="M-14.5,3.19h29v2.32h-29z" />
+            <path android:fillColor="#80B86B4D" android:pathData="M-14.5,7.54h29v2.9h-29z" />
+            <!-- Storm -->
+            <path android:fillColor="#BFB86B4D" android:pathData="M0.435,1.74a3.045,1.16 0 1,0 6.09,0a3.045,1.16 0 1,0 -6.09,0z" />
+            <!-- Night side -->
+            <path android:pathData="M-14.5,-14.5h29v29h-29z">
+                <aapt:attr name="android:fillColor">
+                    <gradient
+                        android:type="radial"
+                        android:centerX="-5.8" android:centerY="-6.525"
+                        android:gradientRadius="26.1">
+                        <item android:offset="0" android:color="#00000000" />
+                        <item android:offset="0.62" android:color="#00000000" />
+                        <item android:offset="1" android:color="#47000000" />
+                    </gradient>
+                </aapt:attr>
+            </path>
+            <!-- Highlight -->
+            <path android:fillColor="#4DFFFFFF" android:pathData="M-9.57,-8.555a4.06,2.175 0 1,0 8.12,0a4.06,2.175 0 1,0 -8.12,0z" />
+        </group>
+
+        <!-- Rings, front half -->
+        <group android:rotation="-18">
+            <clip-path android:pathData="M-40,0H40V40H-40Z" />
+            <path
+                android:strokeColor="#FFBDADEB"
+                android:strokeWidth="2.61"
+                android:pathData="M-19.72,0a19.72,5.92 0 1,0 39.44,0a19.72,5.92 0 1,0 -39.44,0" />
+            <path
+                android:strokeColor="#FFEDE3FF"
+                android:strokeWidth="2.32"
+                android:pathData="M-23.49,0a23.49,7.05 0 1,0 46.98,0a23.49,7.05 0 1,0 -46.98,0" />
+        </group>
     </group>
 </vector>

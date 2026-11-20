@@ -56,7 +56,7 @@ Read `PLAN.md` first. At the end of each session:
 - User made the template project `AgentLoungeCompanion/` (now `android/`) (AGP 9.6, SDK 37, minSdk 24). Facts → PLAN §11.
 - Built: protocol models, mDNS discovery, OkHttp WebSocket connection with backoff and address refresh,
   DataStore pairing + settings, alert notifications, foreground service for background alerts, Compose UI
-  (pair, lounge cards with avatar + details, settings), critter launcher icon.
+  (pair, lounge cards with avatar + details, settings), planet launcher icon.
 - Verified on a Galaxy S26 Ultra (Android 17) with the Mac Debug build: local network permission prompt,
   mDNS found the Mac, pairing with a code, live cards (this session with tasks and context), needs-input
   heads-up notification, done notification with the app in the background, stale needs-input notification
@@ -106,7 +106,7 @@ Read `PLAN.md` first. At the end of each session:
   kept, invalid JSON never written, empty Codex `hooks.json` removed on uninstall.
 - Settings → Hooks section (status, Install / Update / Uninstall with confirm, backup path, Codex trust hint).
   Menu line "Hooks: Claude … · Codex …". Empty panel has a "Hooks and Settings…" button. `GET /debug/hooks`.
-- App icon: three mascots on a dark squircle (`AppIconView`), PNGs via `make icon` (`-renderIconTo <dir>` dev flag).
+- App icon: ringed planet, moon and stars on a dark squircle (`AppIconView`, Android `ic_launcher_*.xml` draws the same art), PNGs via `make icon` (`-renderIconTo <dir>` dev flag).
 - `make release`, `make install` (→ /Applications, then update hooks in Settings). `README.md`.
 - Verified: 89 unit tests pass; Release build has `AppIcon.icns` and the personal signature; `/debug/hooks` →
   Claude "installed" (existing dev hooks match the Debug path), Codex "not installed".
