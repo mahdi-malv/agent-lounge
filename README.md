@@ -87,8 +87,21 @@ xattr -dr com.apple.quarantine "/Applications/Agent Lounge.app"
 1. On the Mac: Settings → **Phone** → turn on → **Pair a Phone…**.
 2. On the phone: install the APK, open it, and enter the code.
 
-The phone and the Mac must be on the same network (port 47822, Bonjour `_agentlounge._tcp`).
-The connection is encrypted; see [`docs/PLAN.md`](docs/PLAN.md) §10.
+The phone and the Mac must be on the same network (port 47822, Bonjour `_agentlounge._tcp`),
+or both on [Tailscale](#away-from-home-tailscale). The connection is encrypted; see
+[`docs/PLAN.md`](docs/PLAN.md) §10.
+
+### Away from home (Tailscale)
+
+1. Install Tailscale on the Mac and on the phone. Sign in to the same tailnet on both. Keep both on.
+2. In the Tailscale app, copy the Mac's Tailscale IP (`100.x.y.z`) or name (`mac.tailnet.ts.net`).
+3. On the phone: pair screen → **Enter address manually** → paste it → enter the code.
+
+Already paired on the LAN? You do not need to pair again. The Mac sends its Tailscale address to the phone,
+and the phone tries it when the LAN address does not answer.
+
+For alerts while away, turn on **Alerts when the app is closed** and tap **Allow** on the battery notice in
+Settings. The connection notification stays visible while the phone is connected.
 
 ## Use
 

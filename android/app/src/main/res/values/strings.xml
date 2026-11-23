@@ -41,7 +41,8 @@
     <string name="pair_discovery_needs_permission">Allow local network access to search.</string>
     <string name="pair_manual_show">Enter address manually</string>
     <string name="pair_manual_hide">Hide manual address</string>
-    <string name="pair_manual_host">IP address</string>
+    <string name="pair_manual_host">IP address or name</string>
+    <string name="pair_manual_tailscale">Not on the same Wi-Fi? Run Tailscale on the Mac and on this phone, then paste the Mac\'s Tailscale IP or name (Tailscale app → the Mac → copy).</string>
     <string name="pair_manual_port">Port</string>
     <string name="pair_code_hint">Enter the 6-digit code that the Mac shows.</string>
     <string name="pair_code">Pairing code</string>
@@ -85,6 +86,8 @@
     <string name="settings_forget">Forget</string>
     <string name="settings_alerts">Alerts</string>
     <string name="settings_background">Alerts when the app is closed</string>
+    <string name="settings_battery">Battery saving can stop the background connection (for example over Tailscale). Let the app run without battery limits.</string>
+    <string name="settings_other_hosts">Also tries: %1$s</string>
     <string name="settings_background_detail">Keeps the connection open in the background. Shows a silent notification while on.</string>
     <string name="settings_notify_needs_input">Needs input</string>
     <string name="settings_notify_needs_input_detail">An agent asks for permission or an answer.</string>

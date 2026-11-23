@@ -83,6 +83,9 @@ nonisolated struct ServerMessage: Codable, Equatable, Sendable {
     var server: String? = nil
     /// welcome: stable Mac id, also in the Bonjour TXT record (`id`).
     var serverId: String? = nil
+    /// welcome: current IPv4 addresses of the Mac (LAN and Tailscale). The phone keeps them as
+    /// other hosts to try when the paired address fails.
+    var addresses: [String]? = nil
     /// snapshot
     var sessions: [RemoteCard]? = nil
     /// snapshot: plan usage per agent (`AgentUsage`). Nil when the usage bar is off.

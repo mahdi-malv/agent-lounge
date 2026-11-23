@@ -1,6 +1,8 @@
 package wtf.mahdi.agentloungecompanion.ui.settings
 
+import android.annotation.SuppressLint
 import android.content.Intent
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -18,6 +20,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -45,6 +51,8 @@ import wtf.mahdi.agentloungecompanion.ui.theme.AgentLoungeCompanionTheme
 data class SettingsUiState(
     val macName: String = "",
     val macAddress: String = "",
+    /** Other addresses of the Mac (LAN, Tailscale) the phone tries when [macAddress] fails. */
+    val otherHosts: List<String> = emptyList(),
     val settings: AppSettings = AppSettings.DEFAULT,
     val confirmForget: Boolean = false,
 ) {
@@ -72,6 +80,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         SettingsUiState(
             macName = mac?.name.orEmpty(),
             macAddress = mac?.let { "${it.host}:${it.port}" }.orEmpty(),
+            otherHosts = mac?.otherHosts.orEmpty(),
             settings = settings,
             confirmForget = confirm,
         )
@@ -92,6 +101,8 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     }
 }
 
+// BatteryLife: the battery request is fine for an APK outside Play (see the manifest).
+@SuppressLint("BatteryLife")
 @Composable
 fun SettingsScreen(
     container: AppContainer,
@@ -102,10 +113,26 @@ fun SettingsScreen(
     val viewModel: SettingsViewModel = viewModel { SettingsViewModel(container) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val power = remember(context) { context.getSystemService(PowerManager::class.java) }
+    var batteryLimited by remember { mutableStateOf(false) }
+    // Read again on resume: the user answers in a system dialog.
+    LifecycleResumeEffect(power) {
+        batteryLimited = !power.isIgnoringBatteryOptimizations(context.packageName)
+        onPauseOrDispose { }
+    }
     SettingsContent(
         state = state,
         notificationsGranted = notificationsGranted,
+        batteryLimited = batteryLimited,
         onRequestPermissions = onRequestPermissions,
+        onAllowBattery = {
+            val intent = Intent(
+                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                android.net.Uri.fromParts("package", context.packageName, null),
+            )
+            runCatching { context.startActivity(intent) }
+                .onFailure { context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
+        },
         onOpenSystemSettings = {
             val intent = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                 Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
@@ -124,7 +151,9 @@ fun SettingsScreen(
 fun SettingsContent(
     state: SettingsUiState,
     notificationsGranted: Boolean,
+    batteryLimited: Boolean,
     onRequestPermissions: () -> Unit,
+    onAllowBattery: () -> Unit,
     onOpenSystemSettings: () -> Unit,
     onBack: () -> Unit,
     onAction: (SettingsAction) -> Unit,
@@ -146,7 +175,10 @@ fun SettingsContent(
             item {
                 ListItem(
                     headlineContent = { Text(state.macName) },
-                    supportingContent = { Text(state.macAddress) },
+                    supportingContent = {
+                        val others = state.otherHosts.joinToString(", ")
+                        Text(if (others.isEmpty()) state.macAddress else state.macAddress + "\n" + stringResource(R.string.settings_other_hosts, others))
+                    },
                     trailingContent = {
                         TextButton(onClick = { onAction(SettingsAction.AskForget) }) {
                             Text(stringResource(R.string.settings_forget), color = MaterialTheme.colorScheme.error)
@@ -174,6 +206,17 @@ fun SettingsContent(
                     checked = state.settings.backgroundAlerts,
                     onChange = { onAction(SettingsAction.SetBackground(it)) },
                 )
+            }
+            if (state.settings.backgroundAlerts && batteryLimited) {
+                item {
+                    NoticeCard(
+                        text = stringResource(R.string.settings_battery),
+                        isWarning = true,
+                        actionLabel = stringResource(R.string.action_allow),
+                        onAction = onAllowBattery,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                }
             }
             AlertKind.entries.forEach { kind ->
                 item(key = kind.name) {
@@ -248,9 +291,15 @@ private fun SwitchRow(title: String, detail: String, checked: Boolean, onChange:
 private fun SettingsPreview() {
     AgentLoungeCompanionTheme {
         SettingsContent(
-            state = SettingsUiState(macName = "Mahdi’s MacBook Pro", macAddress = "192.168.0.100:47822"),
+            state = SettingsUiState(
+                macName = "Mahdi’s MacBook Pro",
+                macAddress = "192.168.0.100:47822",
+                otherHosts = listOf("100.69.105.56"),
+            ),
             notificationsGranted = false,
+            batteryLimited = true,
             onRequestPermissions = {},
+            onAllowBattery = {},
             onOpenSystemSettings = {},
             onBack = {},
             onAction = {},

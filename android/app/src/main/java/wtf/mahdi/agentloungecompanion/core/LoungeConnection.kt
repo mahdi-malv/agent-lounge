@@ -40,7 +40,24 @@ interface PairingRepository {
     suspend fun savePairing(mac: PairedMac)
     suspend fun updateAddress(serverId: String, host: String, port: Int)
     suspend fun updateName(name: String)
+    /** Merges [hosts] into [PairedMac.otherHosts] (see [HostList.merge]). */
+    suspend fun addHosts(serverId: String, hosts: List<String>)
     suspend fun forgetMac()
+}
+
+/** Addresses of the paired Mac: the paired [PairedMac.host] plus the ones the Mac reports (LAN, Tailscale). */
+object HostList {
+    const val MAX_OTHER_HOSTS = 6
+
+    /** Newest first, no duplicates, without [primary], at most [MAX_OTHER_HOSTS]. */
+    fun merge(primary: String, old: List<String>, new: List<String>): List<String> =
+        (new + old).map(String::trim).filter { it.isNotEmpty() && it != primary }.distinct().take(MAX_OTHER_HOSTS)
+
+    /** Order to try: [lastGood] first when it is still known, then [primary], then the others. */
+    fun candidates(primary: String, others: List<String>, lastGood: String?): List<String> {
+        val all = (listOf(primary) + others).distinct()
+        return if (lastGood != null && lastGood in all) listOf(lastGood) + (all - lastGood) else all
+    }
 }
 
 /** Finds the paired Mac's new address. Implemented by `MacDiscovery`. */
@@ -111,13 +128,18 @@ class LoungeConnection(
     /** Encrypts and sends a JSON message on the authenticated socket. Null while not connected. */
     @Volatile private var sender: ((String) -> Boolean)? = null
 
+    /** Host of the last connection that reached `welcome`. Tried first on the next attempt. */
+    @Volatile private var lastGoodHost: String? = null
+
     private val holders = MutableStateFlow<Set<String>>(emptySet())
     private val retryNow = Channel<Unit>(Channel.CONFLATED)
 
     fun start() {
         scope.launch {
-            // A name change alone must not reconnect.
-            val target = store.pairedMac.distinctUntilChanged { a, b -> a?.copy(name = "") == b?.copy(name = "") }
+            // A name or host-list change alone must not reconnect. The loop reads the host list each round.
+            val target = store.pairedMac.distinctUntilChanged { a, b ->
+                a?.copy(name = "", otherHosts = emptyList()) == b?.copy(name = "", otherHosts = emptyList())
+            }
             combine(target, holders.map { it.isNotEmpty() }.distinctUntilChanged()) { mac, wanted -> mac to wanted }
                 .collectLatest { (mac, wanted) ->
                     when {
@@ -192,18 +214,35 @@ class LoungeConnection(
         }
     }
 
+    /**
+     * Tries the known hosts one after another without a wait ([HostList.candidates]). The backoff
+     * wait comes after a full round of failures, so one host gives the same timing as before.
+     */
     private suspend fun runLoop(mac: PairedMac) {
         var attempt = 0
+        var index = 0
         while (true) {
+            val others = store.pairedMac.first()?.otherHosts ?: mac.otherHosts
+            val hosts = HostList.candidates(mac.host, others, lastGoodHost)
+            val host = hosts[index % hosts.size]
             _state.value = ConnectionState.Connecting(attempt)
-            val end = runSession(mac)
+            val end = runSession(mac, host)
             if (end.refusal?.needsNewPairing == true) {
                 Log.i(TAG, "Pairing refused: ${end.refusal}")
                 _pairingLost.value = end.refusal
                 store.forgetMac()
                 return
             }
-            if (end.wasConnected) attempt = 0
+            if (end.wasConnected) {
+                attempt = 0
+                index = 0
+            } else {
+                index++
+                if (index % hosts.size != 0) {
+                    Log.i(TAG, "No answer from $host, trying the next address")
+                    continue
+                }
+            }
             val wait = Backoff.delayMillis(attempt)
             attempt++
             _state.value = ConnectionState.Waiting(clock() + wait, end.reason)
@@ -223,7 +262,7 @@ class LoungeConnection(
     private data class SessionEnd(val reason: String, val wasConnected: Boolean, val refusal: ErrorCode?)
 
     /** hello → challenge → encrypted auth, then encrypted messages until the socket ends. */
-    private suspend fun runSession(mac: PairedMac): SessionEnd {
+    private suspend fun runSession(mac: PairedMac, host: String): SessionEnd {
         var connected = false
         var refusal: ErrorCode? = null
         var reason = "Closed"
@@ -237,12 +276,16 @@ class LoungeConnection(
             when (incoming) {
                 is Incoming.Welcome -> {
                     connected = true
+                    lastGoodHost = host
                     val seal = sealer
                     val send = sendBinary
                     if (seal != null && send != null) sender = { json -> send(seal.seal(json.encodeToByteArray())) }
                     _state.value = ConnectionState.Connected(incoming.server.ifEmpty { mac.name })
                     if (incoming.server.isNotEmpty() && incoming.server != mac.name) {
                         scope.launch { store.updateName(incoming.server) }
+                    }
+                    if (incoming.addresses.isNotEmpty() && mac.serverId.isNotEmpty()) {
+                        scope.launch { store.addHosts(mac.serverId, incoming.addresses) }
                     }
                 }
                 is Incoming.Snapshot -> {
@@ -262,7 +305,7 @@ class LoungeConnection(
         }
 
         try {
-            sockets.open(mac.host, mac.port, LoungeProtocol.hello(mac.deviceId, phoneNonce)).collect { event ->
+            sockets.open(host, mac.port, LoungeProtocol.hello(mac.deviceId, phoneNonce)).collect { event ->
                 when (event) {
                     is SocketEvent.Opened -> sendBinary = event.sendBinary
                     is SocketEvent.Ended -> reason = event.reason

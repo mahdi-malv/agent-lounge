@@ -173,6 +173,11 @@ private fun ManualEntry(state: PairUiState, onAction: (PairAction) -> Unit) {
             Text(stringResource(if (state.showManual) R.string.pair_manual_hide else R.string.pair_manual_show))
         }
         if (state.showManual) {
+            Text(
+                stringResource(R.string.pair_manual_tailscale),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = state.manualHost,

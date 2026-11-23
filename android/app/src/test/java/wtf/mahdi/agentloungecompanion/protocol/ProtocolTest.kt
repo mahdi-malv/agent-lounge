@@ -26,6 +26,10 @@ class ProtocolTest {
         assertTrue(challenge.nonce.contentEquals(byteArrayOf(5)))
         val welcome = LoungeProtocol.parse("""{"deviceId":"D","server":"M","serverId":"S","type":"welcome","v":2}""")
         assertEquals(Incoming.Welcome("D", "M", "S"), welcome)
+        assertEquals(
+            Incoming.Welcome("D", "M", "S", listOf("192.168.1.5", "100.69.105.56")),
+            LoungeProtocol.parse("""{"deviceId":"D","server":"M","serverId":"S","addresses":["192.168.1.5","100.69.105.56"],"type":"welcome","v":2}"""),
+        )
         assertEquals(Incoming.Result("c", false, "no"), LoungeProtocol.parse("""{"type":"result","cardId":"c","ok":false,"reason":"no"}"""))
         assertEquals(
             PairedBox("AQID", "d1", "Mac", "s1"),

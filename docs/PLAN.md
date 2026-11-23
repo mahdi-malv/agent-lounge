@@ -319,7 +319,7 @@ Window: right-click menu "Settings…" or the gear in the panel header (own `NSW
   Protocol: §10.
 - [x] Android (Compose): discover, pair, read-only cards, notifications on needs input / done / error. §11.
 - [x] Phone answers Claude permission requests; phone types prompts into Ghostty sessions; encrypted protocol v2 (§10, §12).
-- Later: remote access (Tailscale), PAKE for pairing, prompts for other hosts.
+- Later: PAKE for pairing, prompts for other hosts. (Remote access over Tailscale: §13.)
 
 ## 9. Open assumptions (verify in the named milestone)
 
@@ -350,7 +350,7 @@ Separate listener, never the hook server. Off by default (Settings → Phone, ke
 
 - Listener: all interfaces, port **47822** (env `AGENT_LOUNGE_LAN_PORT` or `defaults write … lanPort N`).
   WebSocket (`NWProtocolWebSocket`), TCP keepalive ~1 min. Peers outside loopback / private / link-local
-  ranges are refused (`LANAddress.isLocal`; CGNAT 100.64/10 too, so Tailscale needs a change later).
+  ranges are refused (`LANAddress.isLocal`). Tailscale 100.64/10 and fd7a:115c:a1e0::/48 are accepted (§13).
 - Bonjour: `_agentlounge._tcp`, name = computer name, TXT `v=2`, `id=<serverId>` (UUID in `remote.serverId`).
 - Crypto (`PhoneCrypto.swift` / `PhoneCrypto.kt`, same test vectors on both sides):
   - Pairing: phone P-256 key + `proof = HMAC-SHA256(code, pub)` (the code is never sent). Mac checks the proof,
@@ -420,3 +420,21 @@ Design:
   `send key "enter" to t` for `first terminal whose tty is …` (no focus change). Refused while the card needs
   input (text + Enter would answer the dialog). Control characters removed, max 4000 characters.
   Error -1743 = no Automation permission for Ghostty.
+
+## 13. Tailscale (remote access)
+
+No Tailscale code in the apps: the user runs the Tailscale apps on the Mac and on the phone, same tailnet.
+
+- Mac: `LANAddress.isLocal` accepts 100.64.0.0/10 (`isTailscale`). Tailscale IPv6 is in fc00::/7 (accepted before).
+  The range is shared with carrier-grade NAT, which cannot reach the Mac from outside; pairing + secret still apply.
+- Mac: `welcome.addresses` = `LANAddress.currentIPv4()` (LAN and Tailscale). Settings → Phone labels the
+  Tailscale address.
+- Phone: pair with the manual address (Tailscale IP or MagicDNS name, copied from the Tailscale app).
+  `PairedMac.otherHosts` (DataStore `mac.otherHosts`, newline-separated, max 6, newest first) = addresses from
+  `welcome` + the old host when mDNS moves the Mac. A change of this list does not reconnect.
+- Phone reconnect (`LoungeConnection.runLoop`): one round = last good host, then the paired host, then the others,
+  with no wait between them; the backoff wait comes after a full failed round. One host = same timing as before.
+- Battery: Settings shows a notice while background alerts are on and the app is battery-limited →
+  `ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` (permission `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, lint
+  `BatteryLife` ignored: APK from GitHub, not Play). The foreground-service notification shows the connection.
+- Not checked on a device: Android 17 `ACCESS_LOCAL_NETWORK` with VPN (Tailscale) routes.

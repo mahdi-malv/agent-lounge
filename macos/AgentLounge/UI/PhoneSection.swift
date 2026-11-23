@@ -108,7 +108,10 @@ struct PhoneSection: View {
         case .starting: return "Starting…"
         case .failed(let message): return message
         case .listening(let port):
-            let addresses = remote.lanAddresses.map { "\($0):\(port)" }
+            let addresses = remote.lanAddresses.map { address in
+                let parts = address.split(separator: ".").compactMap { UInt8($0) }
+                return LANAddress.isTailscale(ipv4: parts) ? "\(address):\(port) (Tailscale)" : "\(address):\(port)"
+            }
             let where_ = addresses.isEmpty ? "port \(port)" : addresses.joined(separator: ", ")
             return "“\(remote.serviceName)” on \(where_)"
         }

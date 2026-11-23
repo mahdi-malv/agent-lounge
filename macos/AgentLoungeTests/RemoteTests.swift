@@ -206,7 +206,16 @@ struct LANAddressTests {
         #expect(LANAddress.isLocal(ipv4: [169, 254, 3, 4]))
         #expect(!LANAddress.isLocal(ipv4: [172, 32, 0, 1]))
         #expect(!LANAddress.isLocal(ipv4: [8, 8, 8, 8]))
-        #expect(!LANAddress.isLocal(ipv4: [100, 64, 0, 1]))
+        #expect(LANAddress.isLocal(ipv4: [100, 64, 0, 1]))
+        #expect(LANAddress.isLocal(ipv4: [100, 127, 255, 254]))
+        #expect(!LANAddress.isLocal(ipv4: [100, 63, 255, 255]))
+        #expect(!LANAddress.isLocal(ipv4: [100, 128, 0, 1]))
+    }
+
+    @Test func tailscale() {
+        #expect(LANAddress.isTailscale(ipv4: [100, 69, 105, 56]))
+        #expect(!LANAddress.isTailscale(ipv4: [192, 168, 1, 2]))
+        #expect(!LANAddress.isTailscale(ipv4: [100, 64, 0]))
     }
 
     @Test func ipv6() {
@@ -214,6 +223,7 @@ struct LANAddressTests {
         #expect(LANAddress.isLocal(ipv6: v6("::1")))
         #expect(LANAddress.isLocal(ipv6: v6("fe80::1")))
         #expect(LANAddress.isLocal(ipv6: v6("fd12:3456::1")))
+        #expect(LANAddress.isLocal(ipv6: v6("fd7a:115c:a1e0::22f:6939")))   // Tailscale
         #expect(LANAddress.isLocal(ipv6: v6("::ffff:192.168.0.5")))
         #expect(!LANAddress.isLocal(ipv6: v6("::ffff:8.8.8.8")))
         #expect(!LANAddress.isLocal(ipv6: v6("2001:4860::8888")))

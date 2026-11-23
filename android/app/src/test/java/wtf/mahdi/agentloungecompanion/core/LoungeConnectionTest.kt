@@ -287,6 +287,58 @@ class LoungeConnectionTest {
     }
 
     @Test
+    fun welcomeAddressesAreStoredWithoutReconnect() = runBlocking<Unit> {
+        val mac = FakeMac(
+            secret,
+            afterAuth = listOf("""{"type":"welcome","server":"Mac","serverId":"srv","deviceId":"dev","addresses":["192.168.1.5","100.69.105.56"],"v":2}"""),
+        )
+        serve(mac)
+        store.mac.value = paired()
+        val connection = connection()
+        connection.start()
+        connection.hold("test")
+        withTimeout(5_000) { store.mac.first { it?.otherHosts?.isNotEmpty() == true } }
+        assertEquals(listOf("192.168.1.5", "100.69.105.56"), store.mac.value!!.otherHosts)
+        // The host list change must not restart the connection.
+        Thread.sleep(300)
+        assertEquals(1, server.requestCount)
+        assertTrue(connection.state.value is ConnectionState.Connected)
+    }
+
+    @Test
+    fun deadHostFallsBackToOtherHostAtOnce() = runBlocking<Unit> {
+        // First host: a plain 404 (no WebSocket) fails at once. Second host: same server by its IP literal.
+        server.enqueue(MockResponse.Builder().code(404).build())
+        serve(FakeMac(secret, afterAuth = listOf(welcome)))
+        val literal = server.socketAddress.address.hostAddress!!
+        assertTrue("need two spellings of the host", literal != server.hostName)
+        store.mac.value = paired().copy(otherHosts = listOf(literal))
+        val connection = connection()
+        connection.start()
+        connection.hold("test")
+        // No backoff wait between the two hosts: well under the first 1 s step.
+        withTimeout(900) { connection.state.first { it is ConnectionState.Connected } }
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test
+    fun movedMacKeepsTheOldHost() = runBlocking<Unit> {
+        store.mac.value = paired().copy(host = "mac.tail1234.ts.net")
+        store.updateAddress("srv", "192.168.1.9", 47822)
+        assertEquals("192.168.1.9", store.mac.value!!.host)
+        assertEquals(listOf("mac.tail1234.ts.net"), store.mac.value!!.otherHosts)
+    }
+
+    @Test
+    fun hostListMergeAndOrder() {
+        assertEquals(listOf("b", "a"), HostList.merge("p", old = listOf("a", "p"), new = listOf("b", " ", "a")))
+        assertEquals(HostList.MAX_OTHER_HOSTS, HostList.merge("p", emptyList(), (1..10).map { "h$it" }).size)
+        assertEquals(listOf("p", "a", "b"), HostList.candidates("p", listOf("a", "b"), lastGood = null))
+        assertEquals(listOf("b", "p", "a"), HostList.candidates("p", listOf("a", "b"), lastGood = "b"))
+        assertEquals(listOf("p", "a"), HostList.candidates("p", listOf("a"), lastGood = "gone"))
+    }
+
+    @Test
     fun backoffSteps() {
         assertEquals(1_000L, Backoff.delayMillis(0))
         assertEquals(30_000L, Backoff.delayMillis(5))
@@ -303,7 +355,11 @@ private class FakeStore : PairingRepository {
     }
 
     override suspend fun updateAddress(serverId: String, host: String, port: Int) {
-        mac.value = mac.value?.copy(host = host, port = port)
+        mac.value = mac.value?.let { it.copy(host = host, port = port, otherHosts = HostList.merge(host, it.otherHosts, listOf(it.host))) }
+    }
+
+    override suspend fun addHosts(serverId: String, hosts: List<String>) {
+        mac.value = mac.value?.let { it.copy(otherHosts = HostList.merge(it.host, it.otherHosts, hosts)) }
     }
 
     override suspend fun updateName(name: String) {

@@ -11,6 +11,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import wtf.mahdi.agentloungecompanion.core.HostList
 import wtf.mahdi.agentloungecompanion.core.PairingRepository
 import wtf.mahdi.agentloungecompanion.protocol.AlertKind
 
@@ -23,6 +24,8 @@ data class PairedMac(
     /** Long-term device secret (protocol v2), base64. */
     val secret: String,
     val deviceId: String,
+    /** Other addresses of the Mac (LAN, Tailscale) from `welcome`, tried when [host] fails. */
+    val otherHosts: List<String> = emptyList(),
 )
 
 data class AppSettings(
@@ -58,6 +61,8 @@ class LoungeStore(context: Context) : PairingRepository {
         val legacyToken = stringPreferencesKey("mac.token")
         val secret = stringPreferencesKey("mac.secret")
         val deviceId = stringPreferencesKey("mac.deviceId")
+        /** Newline-separated. */
+        val otherHosts = stringPreferencesKey("mac.otherHosts")
         val background = booleanPreferencesKey("settings.backgroundAlerts")
         val notifyNeedsInput = booleanPreferencesKey("settings.notify.needsInput")
         val notifyDone = booleanPreferencesKey("settings.notify.done")
@@ -74,6 +79,7 @@ class LoungeStore(context: Context) : PairingRepository {
             port = prefs[Keys.port] ?: 0,
             secret = secret,
             deviceId = prefs[Keys.deviceId].orEmpty(),
+            otherHosts = prefs[Keys.otherHosts]?.split('\n')?.filter(String::isNotEmpty).orEmpty(),
         )
     }.distinctUntilChanged()
 
@@ -95,13 +101,31 @@ class LoungeStore(context: Context) : PairingRepository {
             prefs[Keys.secret] = mac.secret
             prefs.remove(Keys.legacyToken)
             prefs[Keys.deviceId] = mac.deviceId
+            if (mac.otherHosts.isEmpty()) prefs.remove(Keys.otherHosts) else prefs[Keys.otherHosts] = mac.otherHosts.joinToString("\n")
         }
     }
 
-    /** New address for the paired Mac (DHCP change), found by discovery. */
+    override suspend fun addHosts(serverId: String, hosts: List<String>) {
+        store.edit { prefs ->
+            val primary = prefs[Keys.host] ?: return@edit
+            if (prefs[Keys.serverId] != serverId) return@edit
+            val old = prefs[Keys.otherHosts]?.split('\n').orEmpty()
+            val merged = HostList.merge(primary, old, hosts)
+            if (merged.isEmpty()) prefs.remove(Keys.otherHosts) else prefs[Keys.otherHosts] = merged.joinToString("\n")
+        }
+    }
+
+    /**
+     * New address for the paired Mac (DHCP change), found by discovery. The old host stays in the
+     * other hosts: it can be a Tailscale address the user typed.
+     */
     override suspend fun updateAddress(serverId: String, host: String, port: Int) {
         store.edit { prefs ->
             if (prefs[Keys.serverId] == serverId) {
+                val old = prefs[Keys.host]
+                val others = prefs[Keys.otherHosts]?.split('\n').orEmpty()
+                val merged = HostList.merge(host, others, listOfNotNull(old))
+                if (merged.isEmpty()) prefs.remove(Keys.otherHosts) else prefs[Keys.otherHosts] = merged.joinToString("\n")
                 prefs[Keys.host] = host
                 prefs[Keys.port] = port
             }
@@ -114,7 +138,7 @@ class LoungeStore(context: Context) : PairingRepository {
 
     override suspend fun forgetMac() {
         store.edit { prefs ->
-            listOf(Keys.serverId, Keys.name, Keys.host, Keys.secret, Keys.legacyToken, Keys.deviceId).forEach { prefs.remove(it) }
+            listOf(Keys.serverId, Keys.name, Keys.host, Keys.secret, Keys.legacyToken, Keys.deviceId, Keys.otherHosts).forEach { prefs.remove(it) }
             prefs.remove(Keys.port)
         }
     }

@@ -255,6 +255,7 @@ final class RemoteHub {
         welcome.deviceId = deviceId
         welcome.server = serviceName
         welcome.serverId = serverId
+        welcome.addresses = lanAddresses
         connection.send(welcome)
         connection.send(snapshot(Self.content(store, approvals, usage)))
         logger.info("Phone \(deviceId, privacy: .public) authenticated")

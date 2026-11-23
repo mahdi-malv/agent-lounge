@@ -60,6 +60,7 @@ object LoungeProtocol {
                 deviceId = message.deviceId.orEmpty(),
                 server = message.server.orEmpty(),
                 serverId = message.serverId.orEmpty(),
+                addresses = message.addresses.orEmpty(),
             )
             "snapshot" -> Incoming.Snapshot(message.sessions.orEmpty(), message.usage.orEmpty())
             "alert" -> message.alert?.let { Incoming.Alert(it) } ?: Incoming.Unknown
@@ -87,7 +88,13 @@ sealed interface Incoming {
     /** Mac public key and the sealed [PairedBox]. */
     class Paired(val publicKey: ByteArray, val box: ByteArray) : Incoming
     class Challenge(val nonce: ByteArray) : Incoming
-    data class Welcome(val deviceId: String, val server: String, val serverId: String) : Incoming
+    /** [addresses]: current IPv4 addresses of the Mac (LAN and Tailscale); empty from older Macs. */
+    data class Welcome(
+        val deviceId: String,
+        val server: String,
+        val serverId: String,
+        val addresses: List<String> = emptyList(),
+    ) : Incoming
     /** [usage] is empty when the Mac sends none (older Mac or usage bar off). */
     data class Snapshot(val sessions: List<RemoteCard>, val usage: List<AgentUsage> = emptyList()) : Incoming
     data class Alert(val alert: RemoteAlert) : Incoming
@@ -143,6 +150,7 @@ internal data class ServerMessage(
     val deviceId: String? = null,
     val server: String? = null,
     val serverId: String? = null,
+    val addresses: List<String>? = null,
     val sessions: List<RemoteCard>? = null,
     val usage: List<AgentUsage>? = null,
     val sentAt: String? = null,

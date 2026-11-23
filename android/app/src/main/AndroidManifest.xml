@@ -3,6 +3,11 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Settings asks to run without battery limits, so background alerts survive Doze (also over Tailscale).
+         BatteryLife: Play limits this permission; the app ships as an APK from GitHub releases. -->
+    <uses-permission
+        android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
+        tools:ignore="BatteryLife" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Android 17+: needed to reach the Mac on the local network (runtime permission). -->
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />

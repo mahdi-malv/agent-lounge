@@ -4,7 +4,7 @@ import Network
 
 /// Address checks for the LAN listener (PLAN M8).
 nonisolated enum LANAddress {
-    /// True for loopback, private, and link-local addresses. Other peers are refused.
+    /// True for loopback, private, link-local and Tailscale addresses. Other peers are refused.
     static func isLocal(_ endpoint: NWEndpoint) -> Bool {
         guard case .hostPort(let host, _) = endpoint else { return false }
         switch host {
@@ -19,8 +19,14 @@ nonisolated enum LANAddress {
         switch (b[0], b[1]) {
         case (127, _), (10, _), (192, 168), (169, 254): return true
         case (172, 16...31): return true
-        default: return false
+        default: return isTailscale(ipv4: b)
         }
+    }
+
+    /// 100.64.0.0/10: Tailscale node addresses (shared with carrier-grade NAT, which never
+    /// reaches the Mac from outside). Tailscale IPv6 (fd7a:115c:a1e0::/48) is in fc00::/7.
+    static func isTailscale(ipv4 b: [UInt8]) -> Bool {
+        b.count == 4 && b[0] == 100 && b[1] & 0xc0 == 64
     }
 
     static func isLocal(ipv6 b: [UInt8]) -> Bool {
@@ -34,7 +40,8 @@ nonisolated enum LANAddress {
         return false
     }
 
-    /// IPv4 addresses of the active non-loopback interfaces (for manual entry on the phone).
+    /// IPv4 addresses of the active non-loopback interfaces, Tailscale included (for manual entry
+    /// on the phone and the `welcome` address list).
     static func currentIPv4() -> [String] {
         var head: UnsafeMutablePointer<ifaddrs>?
         guard getifaddrs(&head) == 0, let first = head else { return [] }
