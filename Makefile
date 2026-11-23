@@ -20,9 +20,13 @@ XCODEBUILD_BASE := xcodebuild -project $(PROJECT) -scheme $(SCHEME) \
 	-derivedDataPath $(DERIVED) -destination 'platform=macOS,arch=arm64' -quiet $(SIGNING) $(VERSIONING)
 XCODEBUILD := $(XCODEBUILD_BASE) -configuration Debug
 
-.PHONY: project build test run release dmg install dev-hooks icon clean
+.PHONY: check-tools project build test run release dmg install dev-hooks icon clean
 
-project:
+# Xcode and XcodeGen are there. Prints what to install if not.
+check-tools:
+	@sh scripts/check-tools.sh
+
+project: check-tools
 	@xcodegen generate --quiet --spec macos/project.yml --project macos
 
 build: project
@@ -33,8 +37,8 @@ test: project
 	@set -o pipefail; $(subst -quiet,,$(XCODEBUILD)) test 2>&1 | grep -E "Test run with|✘|\.swift:[0-9]+:[0-9]+: error:|xcodebuild: error:"
 
 run: build
-	@pkill -x "Agent Lounge" || true
-	@open "$(APP)"
+	@sh scripts/quit-app.sh
+	@sh scripts/open-app.sh "$(APP)"
 
 # Optimized build in build/DerivedData/Build/Products/Release.
 release: project
@@ -47,11 +51,11 @@ dmg: release
 # Copies the Release app to $(INSTALL_DIR) (default /Applications) and starts it.
 # Then open Settings > Hooks and click Update: the hooks must point at the installed copy.
 install: release
-	@pkill -x "Agent Lounge" || true
+	@sh scripts/quit-app.sh
 	@rm -rf "$(INSTALL_DIR)/Agent Lounge.app"
 	@ditto "$(RELEASE_APP)" "$(INSTALL_DIR)/Agent Lounge.app"
-	@open "$(INSTALL_DIR)/Agent Lounge.app"
 	@echo "Installed $(INSTALL_DIR)/Agent Lounge.app"
+	@sh scripts/open-app.sh "$(INSTALL_DIR)/Agent Lounge.app"
 
 # Renders the app icon PNGs from AppIconView (needs a Debug build).
 icon: build

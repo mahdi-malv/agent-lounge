@@ -139,6 +139,14 @@ make install    # Release build → /Applications/Agent Lounge.app (INSTALL_DIR=
 make dmg        # Release build → build/Agent-Lounge.dmg
 ```
 
+If a build fails:
+
+| Message | What to do |
+|---------|------------|
+| `XcodeGen is missing` / `Xcode is missing` | Install the tool the message names, then run `make` again. |
+| `accessing build database … disk I/O error` | Move the folder out of Downloads, Desktop or Documents (for example to `~/agent-lounge`), run `make clean`, and build again. Do not run two builds at once. |
+| `_LSOpenURLsWithCompletionHandler() failed with error -600` | The app is installed but did not start. Run `open -a "Agent Lounge"`. |
+
 **Stable signing (recommended).** Ad-hoc signing changes the app's identity on each build, so
 macOS forgets the Accessibility and Automation permissions. Create a git-ignored `local.mk`:
 
