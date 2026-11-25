@@ -19,7 +19,7 @@ struct HooksSection: View {
 
     var body: some View {
         Section {
-            ForEach([AgentKind.claude, .codex], id: \.self) { agent in
+            ForEach(AgentKind.allCases, id: \.self) { agent in
                 row(agent)
             }
             if let resultText {
@@ -69,11 +69,19 @@ struct HooksSection: View {
             }
         } label: {
             VStack(alignment: .leading, spacing: 2) {
-                Text(agent == .claude ? "Claude Code" : "Codex")
+                Text(displayName(agent))
                 Text(statusText(status, agent: agent))
                     .font(.caption)
                     .foregroundStyle(statusColor(status))
             }
+        }
+    }
+
+    private func displayName(_ agent: AgentKind) -> String {
+        switch agent {
+        case .claude: "Claude Code"
+        case .codex: "Codex"
+        case .antigravity: "Antigravity (agy)"
         }
     }
 
@@ -98,7 +106,7 @@ struct HooksSection: View {
     }
 
     private func title(_ action: PendingAction) -> String {
-        let name = action.agent == .claude ? "Claude Code" : "Codex"
+        let name = displayName(action.agent)
         return action.kind == .install ? "Install hooks for \(name)?" : "Uninstall hooks for \(name)?"
     }
 
@@ -110,6 +118,8 @@ struct HooksSection: View {
             return "Adds \(target.config.events.count) hooks to \(file) and sets \(HookConfig.todoToolsEnvKey)=1 if it is not set. Running sessions pick them up at once."
         case (.codex, .install):
             return "Adds \(target.config.events.count) hooks to \(file). Codex runs them only after you trust them: run /hooks in Codex (or Settings > Hooks in the Codex app)."
+        case (.antigravity, .install):
+            return "Adds an agent-lounge hook group (\(target.config.events.count) events) to \(file). Existing hooks stay untouched."
         case (_, .uninstall):
             return "Removes the Agent Lounge hooks from \(file). Other hooks stay."
         }
@@ -136,7 +146,7 @@ struct HooksSection: View {
     }
 
     private func refresh() {
-        for agent in [AgentKind.claude, .codex] {
+        for agent in AgentKind.allCases {
             statuses[agent] = installer.status(agent)
         }
     }

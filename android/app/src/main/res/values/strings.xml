@@ -64,7 +64,7 @@
     <string name="status_paused">Paused</string>
     <string name="empty_title">No agents running</string>
     <string name="empty_offline">Not connected</string>
-    <string name="empty_hint">Cards show here when Claude Code or Codex runs on the Mac.</string>
+    <string name="empty_hint">Cards show here when Claude Code, Codex, or Antigravity runs on the Mac.</string>
     <string name="detail_model">Model</string>
     <string name="detail_branch">Branch</string>
     <string name="detail_folder">Folder</string>

@@ -2,16 +2,26 @@ import Foundation
 
 /// Hook entries in an agent's config file (PLAN §7). Pure edits on `OrderedJSON`, so tests need no files.
 ///
-/// Claude `~/.claude/settings.json` and Codex `~/.codex/hooks.json` use the same shape:
-/// `{"hooks": {"<Event>": [{"matcher": "*", "hooks": [{"type": "command", "command": …, "timeout": 5}]}]}}`.
+/// - Claude (`~/.claude/settings.json`) and Codex (`~/.codex/hooks.json`) use `.wrapped`:
+///   `{"hooks": {"<Event>": [{"matcher": "*", "hooks": [{"type": "command", "command": …, "timeout": 5}]}]}}`.
+/// - Antigravity (`~/.gemini/config/hooks.json`) uses `.named("agent-lounge")`:
+///   `{"agent-lounge": {"SessionStart": [handler], "PreToolUse": [{"matcher": "*", "hooks": [handler]}], …}}`.
 /// Our handlers are found by the command text (it names `lounge-hook`); other entries are never changed.
 nonisolated struct HookConfig: Sendable {
+    enum Shape: Equatable, Sendable {
+        /// Claude / Codex: `{"hooks": {"<Event>": [{"matcher"?, "hooks": [handler]}]}}`.
+        case wrapped
+        /// Antigravity: `{"<name>": {"<Event>": [handler] | [{"matcher": "*", "hooks": [handler]}]}}`.
+        case named(String)
+    }
+
     let agent: AgentKind
     /// Events that get a hook. Tool events get `"matcher": "*"`.
     let events: [String]
     let toolEvents: Set<String>
     /// Events with another timeout than `timeoutSeconds`.
     var timeouts: [String: Int] = [:]
+    var shape: Shape = .wrapped
 
     static let claude = HookConfig(
         agent: .claude,
@@ -32,6 +42,13 @@ nonisolated struct HookConfig: Sendable {
             "SubagentStart", "SubagentStop", "Stop", "Interrupt", "PreCompact", "PostCompact", "SessionEnd",
         ],
         toolEvents: ["PreToolUse", "PostToolUse", "PermissionRequest"]
+    )
+
+    static let antigravity = HookConfig(
+        agent: .antigravity,
+        events: ["SessionStart", "PreInvocation", "PreToolUse", "PostToolUse", "Stop"],
+        toolEvents: ["PreToolUse", "PostToolUse"],
+        shape: .named("agent-lounge")
     )
 
     static let timeoutSeconds = 5
@@ -76,15 +93,27 @@ nonisolated struct HookConfig: Sendable {
         var timeout: Int?
     }
 
+    private var rootKey: String {
+        switch shape {
+        case .wrapped: "hooks"
+        case .named(let name): name
+        }
+    }
+
     private func ourHandlersByEvent(_ config: OrderedJSON) -> [String: [Handler]] {
         var result: [String: [Handler]] = [:]
-        for member in config["hooks"]?.members ?? [] {
-            for group in member.value.arrayValue ?? [] {
-                for handler in group["hooks"]?.arrayValue ?? [] {
-                    if let command = handler["command"]?.stringValue, Self.isOurs(command) {
-                        let timeout = handler["timeout"]?.numberText.flatMap { Int($0) }
-                        result[member.key, default: []].append(Handler(command: command, timeout: timeout))
+        for member in config[rootKey]?.members ?? [] {
+            for item in member.value.arrayValue ?? [] {
+                if let nested = item["hooks"]?.arrayValue {
+                    for handler in nested {
+                        if let command = handler["command"]?.stringValue, Self.isOurs(command) {
+                            let timeout = handler["timeout"]?.numberText.flatMap { Int($0) }
+                            result[member.key, default: []].append(Handler(command: command, timeout: timeout))
+                        }
                     }
+                } else if case .named = shape, let command = item["command"]?.stringValue, Self.isOurs(command) {
+                    let timeout = item["timeout"]?.numberText.flatMap { Int($0) }
+                    result[member.key, default: []].append(Handler(command: command, timeout: timeout))
                 }
             }
         }
@@ -98,39 +127,41 @@ nonisolated struct HookConfig: Sendable {
         stripped(config, keepKeys: false)
     }
 
-    /// - Parameter keepKeys: keep emptied event keys and `hooks` in place, so a new install
+    /// - Parameter keepKeys: keep emptied event keys and root key in place, so a new install
     ///   puts our handlers where they were (install twice = no change).
     private func stripped(_ config: OrderedJSON, keepKeys: Bool) -> OrderedJSON {
-        guard let events = config["hooks"]?.members else { return config }
+        guard let events = config[rootKey]?.members else { return config }
         var keptEvents: [OrderedJSON.Member] = []
         for event in events {
-            guard let groups = event.value.arrayValue else {
+            guard let items = event.value.arrayValue else {
                 keptEvents.append(event)
                 continue
             }
-            var keptGroups: [OrderedJSON] = []
-            for group in groups {
-                guard let handlers = group["hooks"]?.arrayValue else {
-                    keptGroups.append(group)
+            var keptItems: [OrderedJSON] = []
+            for item in items {
+                if let handlers = item["hooks"]?.arrayValue {
+                    let kept = handlers.filter { handler in
+                        !(handler["command"]?.stringValue.map(Self.isOurs) ?? false)
+                    }
+                    if kept.count == handlers.count {
+                        keptItems.append(item)
+                    } else if !kept.isEmpty {
+                        var group = item
+                        group["hooks"] = .array(kept)
+                        keptItems.append(group)
+                    }
+                } else if case .named = shape, item["command"]?.stringValue.map(Self.isOurs) == true {
                     continue
-                }
-                let kept = handlers.filter { handler in
-                    !(handler["command"]?.stringValue.map(Self.isOurs) ?? false)
-                }
-                if kept.count == handlers.count {
-                    keptGroups.append(group)
-                } else if !kept.isEmpty {
-                    var group = group
-                    group["hooks"] = .array(kept)
-                    keptGroups.append(group)
+                } else {
+                    keptItems.append(item)
                 }
             }
-            if !keptGroups.isEmpty || keepKeys {
-                keptEvents.append(OrderedJSON.Member(key: event.key, value: .array(keptGroups)))
+            if !keptItems.isEmpty || keepKeys {
+                keptEvents.append(OrderedJSON.Member(key: event.key, value: .array(keptItems)))
             }
         }
         var result = config
-        result["hooks"] = keptEvents.isEmpty && !keepKeys ? nil : .object(keptEvents)
+        result[rootKey] = keptEvents.isEmpty && !keepKeys ? nil : .object(keptEvents)
         return result
     }
 
@@ -138,20 +169,27 @@ nonisolated struct HookConfig: Sendable {
     func installed(_ config: OrderedJSON, command: String) -> OrderedJSON {
         var result = stripped(config, keepKeys: true)
         if case .object = result {} else { result = .emptyObject }
-        var hooks = result["hooks"] ?? .emptyObject
+        var hooks = result[rootKey] ?? .emptyObject
         for event in events {
-            var group: [OrderedJSON.Member] = []
-            if toolEvents.contains(event) { group.append(.init(key: "matcher", value: .string("*"))) }
-            group.append(.init(key: "hooks", value: .array([.object([
+            let handler = OrderedJSON.object([
                 .init(key: "type", value: .string("command")),
                 .init(key: "command", value: .string(command)),
                 .init(key: "timeout", value: .number(String(timeout(for: event)))),
-            ])])))
-            var groups = hooks[event]?.arrayValue ?? []
-            groups.append(.object(group))
-            hooks[event] = .array(groups)
+            ])
+            let entry: OrderedJSON
+            if case .named = shape, !toolEvents.contains(event) {
+                entry = handler
+            } else {
+                var group: [OrderedJSON.Member] = []
+                if toolEvents.contains(event) { group.append(.init(key: "matcher", value: .string("*"))) }
+                group.append(.init(key: "hooks", value: .array([handler])))
+                entry = .object(group)
+            }
+            var items = hooks[event]?.arrayValue ?? []
+            items.append(entry)
+            hooks[event] = .array(items)
         }
-        result["hooks"] = hooks
+        result[rootKey] = hooks
         return result
     }
 

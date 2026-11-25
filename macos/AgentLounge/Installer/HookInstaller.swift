@@ -35,6 +35,7 @@ final class HookInstaller {
     let hookPath: String
     let claude: Target
     let codex: Target
+    let antigravity: Target
     private let defaults: UserDefaults
     private let logger = Logger(subsystem: "dev.agentlounge.AgentLounge", category: "Installer")
     private static let addedTodoEnvKey = "installer.claude.addedTodoToolsEnv"
@@ -43,11 +44,13 @@ final class HookInstaller {
         hookPath: String = HookInstaller.bundledHookPath,
         claudeSettings: URL = ClaudeFiles.configDirectory.appending(path: "settings.json"),
         codexHooks: URL = CodexFiles.homeDirectory.appending(path: "hooks.json"),
+        antigravityHooks: URL = AntigravityFiles.hooksURL,
         defaults: UserDefaults = .standard
     ) {
         self.hookPath = hookPath
         claude = Target(config: .claude, fileURL: claudeSettings)
         codex = Target(config: .codex, fileURL: codexHooks)
+        antigravity = Target(config: .antigravity, fileURL: antigravityHooks)
         self.defaults = defaults
     }
 
@@ -56,7 +59,11 @@ final class HookInstaller {
     }
 
     func target(_ agent: AgentKind) -> Target {
-        agent == .codex ? codex : claude
+        switch agent {
+        case .claude: claude
+        case .codex: codex
+        case .antigravity: antigravity
+        }
     }
 
     func command(for agent: AgentKind) -> String {
@@ -99,8 +106,9 @@ final class HookInstaller {
             after = HookConfig.withoutTodoTools(after)
             defaults.removeObject(forKey: Self.addedTodoEnvKey)
         }
-        // Codex: a hooks file with nothing left is removed (we created it).
-        if agent == .codex, after == .emptyObject, FileManager.default.fileExists(atPath: target.fileURL.path) {
+        // Codex / Antigravity: a hooks file with nothing left is removed (we created it).
+        if (agent == .codex || agent == .antigravity), after == .emptyObject,
+           FileManager.default.fileExists(atPath: target.fileURL.path) {
             let backup = try backUp(target.fileURL)
             try FileManager.default.removeItem(at: target.fileURL.resolvingSymlinksInPath())
             logger.info("Removed \(target.fileURL.path, privacy: .public) (backup \(backup.lastPathComponent, privacy: .public))")

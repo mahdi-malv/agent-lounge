@@ -173,6 +173,7 @@ enum class SessionState {
 enum class AgentKind {
     @SerialName("claude") CLAUDE,
     @SerialName("codex") CODEX,
+    @SerialName("antigravity") ANTIGRAVITY,
 }
 
 @Serializable

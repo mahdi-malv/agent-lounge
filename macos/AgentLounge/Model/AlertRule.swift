@@ -20,20 +20,25 @@ nonisolated enum SessionSource: String, CaseIterable, Codable, Hashable, Sendabl
     case claudeCLI
     case claudeApp
     case codex
+    case antigravity
 
     var label: String {
         switch self {
         case .claudeCLI: "Claude Code CLI"
         case .claudeApp: "Claude Code in Claude.app"
         case .codex: "Codex (CLI and app)"
+        case .antigravity: "Antigravity (agy)"
         }
     }
 }
 
 nonisolated extension AgentSession {
     var source: SessionSource {
-        if agent == .codex { return .codex }
-        return host == .claudeApp ? .claudeApp : .claudeCLI
+        switch agent {
+        case .claude: host == .claudeApp ? .claudeApp : .claudeCLI
+        case .codex: .codex
+        case .antigravity: .antigravity
+        }
     }
 }
 

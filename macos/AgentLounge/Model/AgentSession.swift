@@ -27,14 +27,16 @@ nonisolated enum SessionState: String, CaseIterable, Codable, Hashable, Sendable
     }
 }
 
-nonisolated enum AgentKind: String, Codable, Hashable, Sendable {
+nonisolated enum AgentKind: String, CaseIterable, Codable, Hashable, Sendable {
     case claude
     case codex
+    case antigravity
 
     var label: String {
         switch self {
         case .claude: "Claude"
         case .codex: "Codex"
+        case .antigravity: "Antigravity"
         }
     }
 }

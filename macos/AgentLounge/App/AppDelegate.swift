@@ -64,7 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             alerts?.eventApplied(event, before: before)
         }
         router.hookStatus = { [installer] in
-            Dictionary(uniqueKeysWithValues: [AgentKind.claude, .codex].map { agent in
+            Dictionary(uniqueKeysWithValues: AgentKind.allCases.map { agent in
                 (agent.rawValue, Self.hookStatusText(installer.status(agent)))
             })
         }
@@ -162,7 +162,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let serverItem = NSMenuItem(title: serverStatusText, action: nil, keyEquivalent: "")
         serverItem.isEnabled = false
         menu.addItem(serverItem)
-        let hooks = [AgentKind.claude, .codex].map { agent in
+        let hooks = AgentKind.allCases.map { agent in
             "\(agent.label) \(Self.hookStatusText(installer.status(agent)))"
         }
         let hooksItem = NSMenuItem(title: "Hooks: " + hooks.joined(separator: " · "), action: #selector(openSettings), keyEquivalent: "")

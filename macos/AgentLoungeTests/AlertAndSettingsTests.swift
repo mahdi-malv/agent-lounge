@@ -143,7 +143,7 @@ struct PreferencesTests {
         #expect(reloaded.floatsWhenPinned == false)
         #expect(reloaded.autoHideDoneMinutes == 30)
         #expect(reloaded.isMuted)
-        #expect(reloaded.enabledSources == [.claudeCLI, .claudeApp])
+        #expect(reloaded.enabledSources == [.claudeCLI, .claudeApp, .antigravity])
         #expect(reloaded.alert(.done) == AlertSetting(playsSound: true, soundName: "Hero", showsNotification: true))
         #expect(reloaded.alert(.error) == Preferences.defaultAlerts[.error])
         #expect(reloaded.notchEnabled)

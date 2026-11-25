@@ -1,6 +1,6 @@
 // lounge-hook — bridge from agent hooks to Agent Lounge.
 //
-// Hook command:  lounge-hook <source>        source = claude | codex
+// Hook command:  lounge-hook <source>        source = claude | codex | antigravity
 //
 // Reads the hook JSON from stdin, adds host info (env + process chain + tty), and POSTs
 // one envelope to http://127.0.0.1:<port>/events (PLAN §3).
@@ -228,11 +228,26 @@ if arguments.contains("--version") {
 }
 let source = arguments.first ?? "claude"
 
+/// Antigravity hooks expect a JSON object on stdout for non-PreToolUse events.
+/// PreToolUse must output nothing so we never override Antigravity's permission prompt.
+func antigravityResponse(source: String, input: Data) -> Data? {
+    guard source == "antigravity" || source == "agy" else { return nil }
+    let payload = (try? JSONSerialization.jsonObject(with: input)) as? [String: Any]
+    switch payload?["hookEventName"] as? String {
+    case "PreToolUse": return nil
+    case "Stop": return Data("{\"decision\":\"\"}\n".utf8)
+    default: return Data("{}\n".utf8)
+    }
+}
+
 let input = FileHandle.standardInput.readDataToEndOfFile()
 if let body = try? JSONSerialization.data(withJSONObject: makeEnvelope(source: source, input: input)) {
     let wait = wantsApproval(source: source, input: input)
     if let decision = post(body, port: resolvePort(), waitForApproval: wait) {
         FileHandle.standardOutput.write(decision)
     }
+}
+if let reply = antigravityResponse(source: source, input: input) {
+    FileHandle.standardOutput.write(reply)
 }
 exit(0)

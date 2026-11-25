@@ -3,7 +3,7 @@ import Foundation
 /// What `lounge-hook` POSTs to `/events`. Keep in sync with `LoungeHook/main.swift`.
 nonisolated struct HookEnvelope: Decodable, Sendable {
     var v: Int
-    /// "claude" or "codex" (first argument of `lounge-hook`).
+    /// "claude", "codex", or "antigravity" (first argument of `lounge-hook`).
     var source: String
     /// Unix time in seconds, set by the hook.
     var sentAt: Double?
@@ -128,14 +128,26 @@ nonisolated extension HostInfo {
             case "Warp", "WezTerm", "kitty", "Alacritty": return .terminal(bundle)
             case "Visual Studio Code": return .terminal("VS Code")
             case "Cursor": return .terminal("Cursor")
+            case "Antigravity": return .terminal("Antigravity")
+            case "Antigravity IDE": return .terminal("Antigravity IDE")
             default: continue
             }
         }
         return nil
     }
 
-    /// PID of the agent process (`claude` / `codex`) in the hook's ancestor chain.
+    /// PID of the agent process (`claude` / `codex` / `agy`) in the hook's ancestor chain.
     func agentPID(for agent: AgentKind) -> Int32? {
+        if agent == .antigravity {
+            let cliMatch = processes?.first { entry in
+                if entry.name == "agy" { return true }
+                return entry.path?.hasSuffix("/agy") == true
+            }
+            if let cliMatch { return cliMatch.pid }
+            return processes?.first { entry in
+                entry.name.hasPrefix("language_server")
+            }?.pid
+        }
         let name = agent.rawValue
         let match = processes?.first { entry in
             if entry.name == name { return true }

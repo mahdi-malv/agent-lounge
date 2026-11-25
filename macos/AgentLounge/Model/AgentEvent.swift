@@ -80,7 +80,11 @@ nonisolated struct ToolCall: Sendable, Equatable {
 
     /// Short target of the call (command, file, pattern, URL), first line only.
     var briefTarget: String? {
-        let keys = ["command", "file_path", "notebook_path", "path", "pattern", "url", "query", "description"]
+        let keys = [
+            "command", "CommandLine", "file_path", "Path", "TargetFile", "AbsolutePath",
+            "notebook_path", "path", "pattern", "Pattern", "url", "Url", "query", "Query",
+            "toolSummary", "description",
+        ]
         for key in keys {
             if let value = input?[key]?.stringValue?.firstLine {
                 return value.count > 80 ? String(value.prefix(79)) + "…" : value

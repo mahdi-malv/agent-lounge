@@ -44,15 +44,21 @@ nonisolated struct TranscriptSummary: Equatable, Sendable {
 nonisolated enum TranscriptFormat: Sendable {
     case claude
     case codex
+    case antigravity
 
     init(_ agent: AgentKind) {
-        self = agent == .codex ? .codex : .claude
+        switch agent {
+        case .claude: self = .claude
+        case .codex: self = .codex
+        case .antigravity: self = .antigravity
+        }
     }
 
     func makeParser(startsMidFile: Bool) -> any TranscriptParsing {
         switch self {
         case .claude: TranscriptParser(startsMidFile: startsMidFile)
         case .codex: CodexRolloutParser(startsMidFile: startsMidFile)
+        case .antigravity: AntigravityTranscriptParser(startsMidFile: startsMidFile)
         }
     }
 }

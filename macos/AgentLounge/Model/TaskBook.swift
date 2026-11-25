@@ -94,6 +94,20 @@ nonisolated struct TaskBook: Codable, Hashable, Sendable {
             }
             replaceTodos(tasks)
             return true
+        case "update_steps":
+            // Antigravity: full checklist each call, `[{title, status}]`.
+            guard case .array(let items)? = input?["steps"] else { return true }
+            let tasks = items.enumerated().compactMap { index, item -> AgentTask? in
+                guard let title = item["title"]?.stringValue else { return nil }
+                return AgentTask(
+                    id: String(index + 1),
+                    subject: title,
+                    activeForm: nil,
+                    status: item["status"]?.stringValue.flatMap(Self.status(from:)) ?? .pending
+                )
+            }
+            replaceTodos(tasks)
+            return true
         default:
             return false
         }
@@ -142,7 +156,7 @@ nonisolated struct TaskBook: Codable, Hashable, Sendable {
         switch raw {
         case "pending": .pending
         case "in_progress": .inProgress
-        case "completed": .completed
+        case "completed", "done": .completed
         default: nil
         }
     }

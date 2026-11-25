@@ -95,6 +95,8 @@ final class EventRouter {
             event = ClaudeAdapter.event(from: envelope, receivedAt: .now)
         case "codex":
             event = CodexAdapter.event(from: envelope, receivedAt: .now)
+        case "antigravity", "agy":
+            event = AntigravityAdapter.event(from: envelope, receivedAt: .now)
         default:
             event = nil
         }

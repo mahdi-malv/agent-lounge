@@ -35,6 +35,7 @@ object UsageFormat {
             agent = when (usage.agent) {
                 AgentKind.CLAUDE -> "Claude"
                 AgentKind.CODEX -> "Codex"
+                AgentKind.ANTIGRAVITY -> "Antigravity"
             },
             plan = usage.plan?.replaceFirstChar { it.uppercase() },
             problem = usage.problem,

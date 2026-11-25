@@ -56,6 +56,30 @@ nonisolated enum ToolActivity {
             return "Waiting for subagents"
         case "request_user_input":
             return "Asking you a question"
+        // Antigravity tool names.
+        case "read_file", "view_file":
+            return (file("Path") ?? file("AbsolutePath")).map { "Reading \($0)" } ?? "Reading a file"
+        case "edit_file", "replace_file_content", "multi_replace_file_content":
+            return (file("Path") ?? file("TargetFile")).map { "Editing \($0)" } ?? "Editing a file"
+        case "write_file", "write_to_file":
+            return (file("Path") ?? file("TargetFile")).map { "Writing \($0)" } ?? "Writing a file"
+        case "run_command":
+            if let summary = string("toolSummary") { return clip(summary, 70) }
+            return string("CommandLine").map { "Running \(clip($0))" } ?? "Running a command"
+        case "grep_search":
+            return string("Query").map { "Searching for “\(clip($0, 40))”" } ?? "Searching code"
+        case "find_by_name":
+            return string("Pattern").map { "Finding files \(clip($0, 40))" } ?? "Finding files"
+        case "search_web":
+            return string("query").map { "Searching the web for “\(clip($0, 40))”" } ?? "Searching the web"
+        case "read_url_content":
+            return string("Url").map { "Fetching \(host(of: $0))" } ?? "Fetching a page"
+        case "invoke_subagent":
+            return string("Role").map { "Subagent: \(clip($0, 50))" } ?? "Running a subagent"
+        case "update_steps":
+            return "Updating the task list"
+        case "ask_question":
+            return "Asking you a question"
         default:
             if tool.name.hasPrefix("mcp__") {
                 let parts = tool.name.split(separator: "__", omittingEmptySubsequences: true)
@@ -70,12 +94,16 @@ nonisolated enum ToolActivity {
     /// Text for a `needsInput` card when the tool itself waits for the user.
     static func waitingText(_ tool: ToolCall) -> String? {
         switch tool.name {
-        case "AskUserQuestion", "request_user_input":
+        case "AskUserQuestion", "request_user_input", "ask_question":
             if case .array(let questions)? = tool.input?["questions"],
                let question = questions.first?["question"]?.stringValue?.firstLine {
                 return clip(question, 90)
             }
-            return tool.name == "AskUserQuestion" ? "Claude has a question" : "Codex has a question"
+            switch tool.name {
+            case "AskUserQuestion": return "Claude has a question"
+            case "request_user_input": return "Codex has a question"
+            default: return "Antigravity has a question"
+            }
         case "ExitPlanMode":
             return "Plan ready for review"
         default:
